@@ -22,13 +22,15 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v2
         with:
-          python-version: 2.7
+          python-version: 3.7
       - name: Get build dependencies
         working-directory: ./sdks/python
         run: python -m pip install -r build-requirements.txt -r build-requirements-linkedin.txt
       - name: Install wheels
         run: python -m pip install wheel
       - name: Build source
+        with:
+          python-version: 2.7
         working-directory: ./sdks/python
         run: python setup.py sdist --formats=zip upload -r lijfrog
       - name: Add checksums
