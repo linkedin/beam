@@ -6,6 +6,9 @@ name: Gradle Package
 on:
   release:
     types: [created]
+  push:
+    branches: ['li_trunk']
+    paths: ['runners/samza/**', 'runners/spark/**', 'buildSrc/src/main/groovy/org/apache/beam/gradle/**']
 
 jobs:
   build:
@@ -33,5 +36,5 @@ jobs:
     - name: Publish to GitHub Packages
       run: ./gradlew publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository -PnoSigning -PisRelease -PisLinkedin --no-daemon
       env:
-        USERNAME: ${{ github.actor }}
-        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        USERNAME: ${{ secrets.ARTIFACTORY_USER }}
+        TOKEN: ${{ secrets.ARTIFACTORY_KEY }}
