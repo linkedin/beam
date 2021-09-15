@@ -27,7 +27,7 @@ jobs:
         settings-path: ${{ github.workspace }} # location for the settings.xml file
 
     - name: Validate Samza runner
-      run: ./gradlew :runners:samza:build :runners:samza:validatesRunner :runners:samza:job-server:validatesPortableRunner
+      run: ./gradlew :runners:samza:build :runners:samza:validatesRunner
 
     - name: Validate Spark runner
       run: ./gradlew :runners:spark:build :runners:spark:validatesRunner
