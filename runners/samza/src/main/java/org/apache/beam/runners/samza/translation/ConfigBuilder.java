@@ -87,9 +87,15 @@ public class ConfigBuilder {
     try {
       // apply framework configs
       config.putAll(createSystemConfig(options, config));
+      LOG.debug(
+          "After applying system configs, app.runner.class is set to {}",
+          config.get(APP_RUNNER_CLASS));
 
       // apply user configs
       config.putAll(createUserConfig(options));
+      LOG.debug(
+          "After applying user configs, app.runner.class is set to {}",
+          config.get(APP_RUNNER_CLASS));
 
       config.put(ApplicationConfig.APP_NAME, options.getJobName());
       config.put(ApplicationConfig.APP_ID, options.getJobInstance());
@@ -140,6 +146,9 @@ public class ConfigBuilder {
     }
     // Apply override on top
     if (options.getConfigOverride() != null) {
+      LOG.debug(
+          "app.runner.class in option config override is set to {}",
+          options.getConfigOverride().get(APP_RUNNER_CLASS));
       config.putAll(options.getConfigOverride());
     }
 
