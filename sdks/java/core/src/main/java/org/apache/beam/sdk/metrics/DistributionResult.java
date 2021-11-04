@@ -18,15 +18,14 @@
 package org.apache.beam.sdk.metrics;
 
 import com.google.auto.value.AutoValue;
-import java.util.Map;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
-import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 
 /** The result of a {@link Distribution} metric. */
 @Experimental(Kind.METRICS)
 @AutoValue
 public abstract class DistributionResult {
+
   public abstract long getSum();
 
   public abstract long getCount();
@@ -34,8 +33,6 @@ public abstract class DistributionResult {
   public abstract long getMin();
 
   public abstract long getMax();
-
-  public abstract Map<Double, Double> getPercentiles();
 
   public double getMean() {
     return (1.0 * getSum()) / getCount();
@@ -45,13 +42,7 @@ public abstract class DistributionResult {
   public static final DistributionResult IDENTITY_ELEMENT =
       create(0, 0, Long.MAX_VALUE, Long.MIN_VALUE);
 
-  public static DistributionResult create(
-      long sum, long count, long min, long max, Map<Double, Double> percentiles) {
-    return new AutoValue_DistributionResult(sum, count, min, max, percentiles);
-  }
-
-  /** For backward compatibility. */
   public static DistributionResult create(long sum, long count, long min, long max) {
-    return create(sum, count, min, max, ImmutableMap.of());
+    return new AutoValue_DistributionResult(sum, count, min, max);
   }
 }

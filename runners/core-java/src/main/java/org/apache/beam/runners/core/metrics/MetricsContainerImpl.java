@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.apache.beam.model.pipeline.v1.MetricsApi.MonitoringInfo;
 import org.apache.beam.runners.core.metrics.MetricUpdates.MetricUpdate;
+import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.Metric;
 import org.apache.beam.sdk.metrics.MetricKey;
 import org.apache.beam.sdk.metrics.MetricName;
@@ -48,7 +49,6 @@ import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.ByteString;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableList;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
-import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableSet;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,7 +78,7 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
 
   private MetricsMap<MetricName, CounterCell> counters = new MetricsMap<>(CounterCell::new);
 
-  private MetricsMap<DistributionMetricKey, DistributionCell> distributions =
+  private MetricsMap<MetricName, DistributionCell> distributions =
       new MetricsMap<>(DistributionCell::new);
 
   private MetricsMap<MetricName, GaugeCell> gauges = new MetricsMap<>(GaugeCell::new);
@@ -152,16 +152,7 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
    */
   @Override
   public DistributionCell getDistribution(MetricName metricName) {
-    return distributions.get(DistributionMetricKey.create(metricName, ImmutableSet.of()));
-  }
-
-  /**
-   * Return a {@code DistributionCell} named {@code metricName} with a custom set of percentiles. If
-   * it doesn't exist, create a {@code Metric} with the specified name.
-   */
-  @Override
-  public DistributionCell getDistribution(MetricName metricName, Set<Double> percentiles) {
-    return distributions.get(DistributionMetricKey.create(metricName, percentiles));
+    return distributions.get(metricName);
   }
 
   /**
@@ -169,7 +160,7 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
    * null}.
    */
   public @Nullable DistributionCell tryGetDistribution(MetricName metricName) {
-    return distributions.tryGet(DistributionMetricKey.create(metricName, ImmutableSet.of()));
+    return distributions.tryGet(metricName);
   }
 
   /**
@@ -219,29 +210,13 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
     return updates.build();
   }
 
-  private ImmutableList<MetricUpdate<DistributionData>> extractDistributionUpdates(
-      MetricsMap<DistributionMetricKey, DistributionCell> cells) {
-    ImmutableList.Builder<MetricUpdate<DistributionData>> updates = ImmutableList.builder();
-    for (Map.Entry<DistributionMetricKey, DistributionCell> cell : cells.entries()) {
-      if (cell.getValue().getDirty().beforeCommit()) {
-        updates.add(
-            MetricUpdate.create(
-                MetricKey.create(stepName, cell.getKey().getMetricName()),
-                cell.getValue().getCumulative()));
-      }
-    }
-    return updates.build();
-  }
-
   /**
    * Return the cumulative values for any metrics that have changed since the last time updates were
    * committed.
    */
   public MetricUpdates getUpdates() {
     return MetricUpdates.create(
-        extractUpdates(counters),
-        extractDistributionUpdates(distributions),
-        extractUpdates(gauges));
+        extractUpdates(counters), extractUpdates(distributions), extractUpdates(gauges));
   }
 
   /** @return The MonitoringInfo metadata from the metric. */
@@ -386,20 +361,13 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
     }
   }
 
-  private void commitDistributionUpdates(
-      MetricsMap<DistributionMetricKey, DistributionCell> cells) {
-    for (DistributionCell cell : cells.values()) {
-      cell.getDirty().afterCommit();
-    }
-  }
-
   /**
    * Mark all of the updates that were retrieved with the latest call to {@link #getUpdates()} as
    * committed.
    */
   public void commitUpdates() {
     commitUpdates(counters);
-    commitDistributionUpdates(distributions);
+    commitUpdates(distributions);
     commitUpdates(gauges);
   }
 
@@ -413,17 +381,6 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
     return updates.build();
   }
 
-  private ImmutableList<MetricUpdate<DistributionData>> extractCumulativesForDistributions(
-      MetricsMap<DistributionMetricKey, DistributionCell> cells) {
-    ImmutableList.Builder<MetricUpdate<DistributionData>> updates = ImmutableList.builder();
-    for (Map.Entry<DistributionMetricKey, DistributionCell> cell : cells.entries()) {
-      DistributionData update = checkNotNull(cell.getValue().getCumulative());
-      updates.add(
-          MetricUpdate.create(MetricKey.create(stepName, cell.getKey().getMetricName()), update));
-    }
-    return updates.build();
-  }
-
   /**
    * Return the {@link MetricUpdates} representing the cumulative values of all metrics in this
    * container.
@@ -431,7 +388,7 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
   public MetricUpdates getCumulative() {
     return MetricUpdates.create(
         extractCumulatives(counters),
-        extractCumulativesForDistributions(distributions),
+        extractCumulatives(distributions),
         extractCumulatives(gauges));
   }
 
@@ -451,10 +408,10 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
 
   private void updateForDistributionInt64Type(MonitoringInfo monitoringInfo) {
     MetricName metricName = MonitoringInfoMetricName.of(monitoringInfo);
-    DistributionCell distribution = getDistribution(metricName);
+    Distribution distribution = getDistribution(metricName);
 
     DistributionData data = decodeInt64Distribution(monitoringInfo.getPayload());
-    distribution.update(data);
+    distribution.update(data.sum(), data.count(), data.min(), data.max());
   }
 
   private void updateForLatestInt64Type(MonitoringInfo monitoringInfo) {
@@ -497,9 +454,9 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
   }
 
   private void updateDistributions(
-      MetricsMap<DistributionMetricKey, DistributionCell> current,
-      MetricsMap<DistributionMetricKey, DistributionCell> updates) {
-    for (Map.Entry<DistributionMetricKey, DistributionCell> counter : updates.entries()) {
+      MetricsMap<MetricName, DistributionCell> current,
+      MetricsMap<MetricName, DistributionCell> updates) {
+    for (Map.Entry<MetricName, DistributionCell> counter : updates.entries()) {
       current.get(counter.getKey()).update(counter.getValue().getCumulative());
     }
   }
@@ -566,8 +523,8 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
       message.append(cell.getValue().getCumulative());
       message.append("\n");
     }
-    for (Map.Entry<DistributionMetricKey, DistributionCell> cell : distributions.entries()) {
-      if (!matchMetric(cell.getKey().getMetricName(), allowedMetricUrns)) {
+    for (Map.Entry<MetricName, DistributionCell> cell : distributions.entries()) {
+      if (!matchMetric(cell.getKey(), allowedMetricUrns)) {
         continue;
       }
       message.append(cell.getKey().toString());

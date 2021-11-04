@@ -157,8 +157,7 @@ public class JetMetricResults extends MetricResults {
     void merge(Iterable<MetricUpdate<DistributionData>> updates) {
       for (MetricUpdate<DistributionData> update : updates) {
         MetricKey key = update.getKey();
-        DistributionData oldDistribution =
-            distributions.getOrDefault(key, DistributionData.empty());
+        DistributionData oldDistribution = distributions.getOrDefault(key, DistributionData.EMPTY);
         DistributionData updatedDistribution = update.getUpdate().combine(oldDistribution);
         distributions.put(key, updatedDistribution);
       }

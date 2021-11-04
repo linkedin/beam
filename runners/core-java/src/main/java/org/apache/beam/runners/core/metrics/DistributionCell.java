@@ -34,8 +34,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public class DistributionCell implements Distribution, MetricCell<DistributionData> {
 
-  private final DirtyState dirty;
-  private final AtomicReference<DistributionData> value;
+  private final DirtyState dirty = new DirtyState();
+  private final AtomicReference<DistributionData> value =
+      new AtomicReference<>(DistributionData.EMPTY);
   private final MetricName name;
 
   /**
@@ -44,36 +45,31 @@ public class DistributionCell implements Distribution, MetricCell<DistributionDa
    * MetricsContainer}. These constructors are *only* public so runners can instantiate.
    */
   public DistributionCell(MetricName name) {
-    this.dirty = new DirtyState();
-    this.value = new AtomicReference<>(DistributionData.empty());
     this.name = name;
-  }
-
-  public DistributionCell(DistributionMetricKey metricKey) {
-    this.dirty = new DirtyState();
-    this.value =
-        new AtomicReference<>(DistributionData.withPercentiles(metricKey.getPercentiles()));
-    this.name = metricKey.getMetricName();
   }
 
   @Override
   public void reset() {
     dirty.afterModification();
-    value.get().reset();
+    value.set(DistributionData.EMPTY);
   }
 
   /** Increment the distribution by the given amount. */
   @Override
   public void update(long n) {
-    value.get().update(n);
-    dirty.afterModification();
+    update(DistributionData.singleton(n));
   }
 
-  void update(DistributionData other) {
+  @Override
+  public void update(long sum, long count, long min, long max) {
+    update(DistributionData.create(sum, count, min, max));
+  }
+
+  void update(DistributionData data) {
     DistributionData original;
     do {
       original = value.get();
-    } while (!value.compareAndSet(original, original.combine(other)));
+    } while (!value.compareAndSet(original, original.combine(data)));
     dirty.afterModification();
   }
 
