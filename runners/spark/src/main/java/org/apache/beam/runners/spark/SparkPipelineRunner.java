@@ -19,7 +19,6 @@ package org.apache.beam.runners.spark;
 
 import static org.apache.beam.runners.fnexecution.translation.PipelineTranslatorUtils.hasUnboundedPCollections;
 import static org.apache.beam.runners.spark.SparkCommonPipelineOptions.prepareFilesToStage;
-import static org.apache.beam.runners.spark.util.SparkCommon.startEventLoggingListener;
 
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.UUID;
@@ -51,7 +50,6 @@ import org.apache.beam.runners.spark.translation.SparkStreamingPortablePipelineT
 import org.apache.beam.runners.spark.translation.SparkStreamingTranslationContext;
 import org.apache.beam.runners.spark.translation.SparkTranslationContext;
 import org.apache.beam.runners.spark.util.GlobalWatermarkHolder;
-import org.apache.beam.runners.spark.util.SparkCompat;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.metrics.MetricsOptions;
@@ -59,12 +57,9 @@ import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.vendor.grpc.v1p36p0.com.google.protobuf.Struct;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.scheduler.EventLoggingListener;
-import org.apache.spark.scheduler.SparkListenerApplicationEnd;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.api.java.JavaStreamingListener;
 import org.apache.spark.streaming.api.java.JavaStreamingListenerWrapper;
-import org.joda.time.Instant;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
