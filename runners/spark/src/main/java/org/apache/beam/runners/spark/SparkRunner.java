@@ -218,7 +218,7 @@ public final class SparkRunner extends PipelineRunner<SparkPipelineResult> {
       result = new SparkPipelineResult.StreamingMode(startPipeline, jssc);
     } else {
       jsc = SparkContextFactory.getSparkContext(pipelineOptions);
-      eventLoggingListener = startEventLoggingListener(jsc, pipelineOptions, startTime);
+      // LI Specific: disable eventLoggingListener for SparkRunner Batch since it causes troubles: see LISAMZA-22077
       final EvaluationContext evaluationContext =
           new EvaluationContext(jsc, pipeline, pipelineOptions);
       translator = new TransformTranslator.Translator();
@@ -253,13 +253,7 @@ public final class SparkRunner extends PipelineRunner<SparkPipelineResult> {
             result);
     metricsPusher.start();
 
-    if (eventLoggingListener != null && jsc != null) {
-      eventLoggingListener.onApplicationStart(
-          SparkCompat.buildSparkListenerApplicationStart(jsc, pipelineOptions, startTime, result));
-      eventLoggingListener.onApplicationEnd(
-          new SparkListenerApplicationEnd(Instant.now().getMillis()));
-      eventLoggingListener.stop();
-    }
+    // LI Specific: disable eventLoggingListener for SparkRunner Batch since it causes troubles: see LISAMZA-22077
 
     return result;
   }

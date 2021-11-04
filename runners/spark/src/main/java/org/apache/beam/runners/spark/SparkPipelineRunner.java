@@ -119,9 +119,7 @@ public class SparkPipelineRunner implements PortablePipelineRunner {
     PortablePipelineResult result;
     final JavaSparkContext jsc = SparkContextFactory.getSparkContext(pipelineOptions);
 
-    final long startTime = Instant.now().getMillis();
-    EventLoggingListener eventLoggingListener =
-        startEventLoggingListener(jsc, pipelineOptions, startTime);
+    // LI Specific: disable eventLoggingListener for SparkRunner since it causes troubles: see LISAMZA-22077
 
     // Initialize accumulators.
     AggregatorsAccumulator.init(pipelineOptions, jsc);
@@ -207,13 +205,7 @@ public class SparkPipelineRunner implements PortablePipelineRunner {
             result);
     metricsPusher.start();
 
-    if (eventLoggingListener != null) {
-      eventLoggingListener.onApplicationStart(
-          SparkCompat.buildSparkListenerApplicationStart(jsc, pipelineOptions, startTime, result));
-      eventLoggingListener.onApplicationEnd(
-          new SparkListenerApplicationEnd(Instant.now().getMillis()));
-      eventLoggingListener.stop();
-    }
+    // LI Specific: disable eventLoggingListener for SparkRunner Batch since it causes troubles: see LISAMZA-22077
 
     return result;
   }
