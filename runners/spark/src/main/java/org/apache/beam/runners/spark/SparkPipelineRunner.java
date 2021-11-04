@@ -200,7 +200,7 @@ public class SparkPipelineRunner implements PortablePipelineRunner {
             result);
     metricsPusher.start();
 
-    // LI Specific: disable eventLoggingListener for SparkRunner Batch since it causes troubles: see LISAMZA-22077
+    // LI Specific: disable eventLoggingListener for SparkRunner since it causes troubles: see LISAMZA-22077
 
     return result;
   }
