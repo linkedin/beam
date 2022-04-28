@@ -62,8 +62,8 @@ import org.slf4j.LoggerFactory;
   "nullness" // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
 })
 public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
-  public static final String CONFIG_PIPELINE = "pipeline";
-  public static final String CONFIG_JOB_INFO = "jobInfo";
+  public static final String BEAM_PIPELINE_PROTO = "beamPipelinProto";
+  public static final String BEAM_JOB_INFO = "beamJobInfo";
 
   private static final Logger LOG = LoggerFactory.getLogger(SamzaRunner.class);
   private static final String BEAM_DOT_GRAPH = "beamDotGraph";
@@ -93,8 +93,8 @@ public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
     SamzaPortablePipelineTranslator.createConfig(pipeline, configBuilder, options);
     configBuilder.put(BEAM_DOT_GRAPH, dotGraph);
-    configBuilder.put(CONFIG_PIPELINE, Base64Serializer.serializeUnchecked(pipeline));
-    configBuilder.put(CONFIG_JOB_INFO, Base64Serializer.serializeUnchecked(jobInfo));
+    configBuilder.put(BEAM_PIPELINE_PROTO, Base64Serializer.serializeUnchecked(pipeline));
+    configBuilder.put(BEAM_JOB_INFO, Base64Serializer.serializeUnchecked(jobInfo));
 
     final Config config = configBuilder.build();
     options.setConfigOverride(config);
