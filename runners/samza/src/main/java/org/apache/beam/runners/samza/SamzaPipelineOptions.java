@@ -57,6 +57,13 @@ public interface SamzaPipelineOptions extends PipelineOptions {
   void setJobInstance(String instance);
 
   @Description(
+      "The file path for the local file system token. If not set (by default), then the runner would"
+          + " not use secure server factory.")
+  String getFsTokenPath();
+
+  void setFsTokenPath(String path);
+
+  @Description(
       "Samza application execution environment."
           + "See {@link org.apache.beam.runners.samza.SamzaExecutionEnvironment} for detailed environment descriptions.")
   @Default.Enum("LOCAL")

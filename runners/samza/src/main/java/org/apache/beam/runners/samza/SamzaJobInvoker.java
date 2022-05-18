@@ -26,6 +26,7 @@ import org.apache.beam.runners.jobsubmission.JobInvocation;
 import org.apache.beam.runners.jobsubmission.JobInvoker;
 import org.apache.beam.runners.jobsubmission.PortablePipelineJarCreator;
 import org.apache.beam.runners.jobsubmission.PortablePipelineRunner;
+import org.apache.beam.sdk.options.PortablePipelineOptions;
 import org.apache.beam.vendor.grpc.v1p43p2.com.google.protobuf.Struct;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Strings;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.util.concurrent.ListeningExecutorService;
@@ -59,11 +60,12 @@ public class SamzaJobInvoker extends JobInvoker {
       @Nullable String retrievalToken,
       ListeningExecutorService executorService) {
     LOG.trace("Parsing pipeline options");
-    final SamzaPortablePipelineOptions samzaOptions =
-        PipelineOptionsTranslation.fromProto(options).as(SamzaPortablePipelineOptions.class);
+    final SamzaPipelineOptions samzaOptions =
+        PipelineOptionsTranslation.fromProto(options).as(SamzaPipelineOptions.class);
+    final PortablePipelineOptions portableOptions = samzaOptions.as(PortablePipelineOptions.class);
 
     final PortablePipelineRunner pipelineRunner;
-    if (Strings.isNullOrEmpty(samzaOptions.getOutputExecutablePath())) {
+    if (Strings.isNullOrEmpty(portableOptions.getOutputExecutablePath())) {
       pipelineRunner = new SamzaPipelineRunner(samzaOptions);
     } else {
       /*
