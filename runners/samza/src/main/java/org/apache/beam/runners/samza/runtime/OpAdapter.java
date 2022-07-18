@@ -24,8 +24,10 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
+import org.apache.beam.runners.samza.util.ExceptionListener;
 import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.samza.config.Config;
 import org.apache.samza.context.Context;
 import org.apache.samza.operators.Scheduler;
@@ -102,7 +104,9 @@ public class OpAdapter<InT, OutT, K>
               String.format("Unexpected input type: %s", message.getType()));
       }
     } catch (Exception e) {
-      LOG.error("Op {} threw an exception during processing", this.getClass().getName(), e);
+      LOG.error("Op {} threw an exception during processing", op.getFullOpName(), e);
+      e.addSuppressed(new RuntimeException(String.format("Op %s threw an exception during processing", op.getFullOpName()), e));
+      ExceptionListener.getInstance().setException(Pair.of(op.getFullOpName(), e));
       throw UserCodeException.wrap(e);
     }
 
