@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
-import org.apache.beam.runners.samza.util.ExceptionListener;
+import org.apache.beam.runners.samza.util.SamzaExceptionListener;
 import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.samza.config.Config;
@@ -108,7 +108,7 @@ public class OpAdapter<InT, OutT, K>
       e.addSuppressed(
           new RuntimeException(
               String.format("Op %s threw an exception during processing", op.getFullOpName()), e));
-      ExceptionListener.getInstance()
+      SamzaExceptionListener.getInstance()
           .setException(new AbstractMap.SimpleEntry<>(op.getFullOpName(), e));
       throw UserCodeException.wrap(e);
     }
