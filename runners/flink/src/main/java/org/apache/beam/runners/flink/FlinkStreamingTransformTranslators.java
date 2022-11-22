@@ -1419,38 +1419,38 @@ class FlinkStreamingTransformTranslators {
   }
 
   /** Registers classes specialized to the Flink runner. */
-//  @AutoService(TransformPayloadTranslatorRegistrar.class)
-//  public static class FlinkTransformsRegistrar implements TransformPayloadTranslatorRegistrar {
-//    @Override
-//    public Map<
-//            ? extends Class<? extends PTransform>,
-//            ? extends PTransformTranslation.TransformPayloadTranslator>
-//        getTransformPayloadTranslators() {
-//      return ImmutableMap
-//          .<Class<? extends PTransform>, PTransformTranslation.TransformPayloadTranslator>builder()
-//          .put(
-//              CreateStreamingFlinkView.CreateFlinkPCollectionView.class,
-//              new CreateStreamingFlinkViewPayloadTranslator())
-//          .put(
-//              SplittableParDoViaKeyedWorkItems.ProcessElements.class,
-//              PTransformTranslation.TransformPayloadTranslator.NotSerializable.forUrn(
-//                  SPLITTABLE_PROCESS_URN))
-//          .build();
-//    }
-//  }
+  @AutoService(TransformPayloadTranslatorRegistrar.class)
+  public static class FlinkTransformsRegistrar implements TransformPayloadTranslatorRegistrar {
+    @Override
+    public Map<
+            ? extends Class<? extends PTransform>,
+            ? extends PTransformTranslation.TransformPayloadTranslator>
+        getTransformPayloadTranslators() {
+      return ImmutableMap
+          .<Class<? extends PTransform>, PTransformTranslation.TransformPayloadTranslator>builder()
+          .put(
+              CreateStreamingFlinkView.CreateFlinkPCollectionView.class,
+              new CreateStreamingFlinkViewPayloadTranslator())
+          .put(
+              SplittableParDoViaKeyedWorkItems.ProcessElements.class,
+              PTransformTranslation.TransformPayloadTranslator.NotSerializable.forUrn(
+                  SPLITTABLE_PROCESS_URN))
+          .build();
+    }
+  }
 
   /** A translator just to vend the URN. */
-//  private static class CreateStreamingFlinkViewPayloadTranslator
-//      extends PTransformTranslation.TransformPayloadTranslator.NotSerializable<
-//          CreateStreamingFlinkView.CreateFlinkPCollectionView<?, ?>> {
-//
-//    private CreateStreamingFlinkViewPayloadTranslator() {}
-//
-//    @Override
-//    public String getUrn(CreateStreamingFlinkView.CreateFlinkPCollectionView<?, ?> transform) {
-//      return CreateStreamingFlinkView.CREATE_STREAMING_FLINK_VIEW_URN;
-//    }
-//  }
+  private static class CreateStreamingFlinkViewPayloadTranslator
+      extends PTransformTranslation.TransformPayloadTranslator.NotSerializable<
+          CreateStreamingFlinkView.CreateFlinkPCollectionView<?, ?>> {
+
+    private CreateStreamingFlinkViewPayloadTranslator() {}
+
+    @Override
+    public String getUrn(CreateStreamingFlinkView.CreateFlinkPCollectionView<?, ?> transform) {
+      return CreateStreamingFlinkView.CREATE_STREAMING_FLINK_VIEW_URN;
+    }
+  }
 
   /** A translator to support {@link TestStream} with Flink. */
 //  private static class TestStreamTranslator<T>
