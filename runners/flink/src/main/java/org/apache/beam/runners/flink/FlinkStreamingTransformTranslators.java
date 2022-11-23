@@ -113,7 +113,6 @@ import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -144,7 +143,7 @@ class FlinkStreamingTransformTranslators {
 
   // here you can find all the available translators.
   static {
-//    TRANSLATORS.put(PTransformTranslation.IMPULSE_TRANSFORM_URN, new ImpulseTranslator());
+    TRANSLATORS.put(PTransformTranslation.IMPULSE_TRANSFORM_URN, new ImpulseTranslator());
     TRANSLATORS.put(PTransformTranslation.READ_TRANSFORM_URN, new ReadSourceTranslator());
 
     TRANSLATORS.put(PTransformTranslation.PAR_DO_TRANSFORM_URN, new ParDoStreamingTranslator());
@@ -164,7 +163,7 @@ class FlinkStreamingTransformTranslators {
     TRANSLATORS.put(
         PTransformTranslation.COMBINE_PER_KEY_TRANSFORM_URN, new CombinePerKeyTranslator());
 
-//    TRANSLATORS.put(PTransformTranslation.TEST_STREAM_TRANSFORM_URN, new TestStreamTranslator());
+    TRANSLATORS.put(PTransformTranslation.TEST_STREAM_TRANSFORM_URN, new TestStreamTranslator());
   }
 
   public static FlinkStreamingPipelineTranslator.StreamTransformTranslator<?> getTranslator(
@@ -294,30 +293,30 @@ class FlinkStreamingTransformTranslators {
     }
   }
 
-//  private static class ImpulseTranslator<T>
-//      extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<Impulse> {
-//    @Override
-//    void translateNode(Impulse transform, FlinkStreamingTranslationContext context) {
-//
-//      TypeInformation<WindowedValue<byte[]>> typeInfo =
-//          new CoderTypeInformation<>(
-//              WindowedValue.getFullCoder(ByteArrayCoder.of(), GlobalWindow.Coder.INSTANCE),
-//              context.getPipelineOptions());
-//
-//      long shutdownAfterIdleSourcesMs =
-//          context
-//              .getPipelineOptions()
-//              .as(FlinkPipelineOptions.class)
-//              .getShutdownSourcesAfterIdleMs();
-//      SingleOutputStreamOperator<WindowedValue<byte[]>> source =
-//          context
-//              .getExecutionEnvironment()
-//              .addSource(new ImpulseSourceFunction(shutdownAfterIdleSourcesMs), "Impulse")
-//              .returns(typeInfo);
-//
-//      context.setOutputDataStream(context.getOutput(transform), source);
-//    }
-//  }
+  public static class ImpulseTranslator<T>
+      extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<Impulse> {
+    @Override
+    public void translateNode(Impulse transform, FlinkStreamingTranslationContext context) {
+
+      TypeInformation<WindowedValue<byte[]>> typeInfo =
+          new CoderTypeInformation<>(
+              WindowedValue.getFullCoder(ByteArrayCoder.of(), GlobalWindow.Coder.INSTANCE),
+              context.getPipelineOptions());
+
+      long shutdownAfterIdleSourcesMs =
+          context
+              .getPipelineOptions()
+              .as(FlinkPipelineOptions.class)
+              .getShutdownSourcesAfterIdleMs();
+      SingleOutputStreamOperator<WindowedValue<byte[]>> source =
+          context
+              .getExecutionEnvironment()
+              .addSource(new ImpulseSourceFunction(shutdownAfterIdleSourcesMs), "Impulse")
+              .returns(typeInfo);
+
+      context.setOutputDataStream(context.getOutput(transform), source);
+    }
+  }
 
   public static class ReadSourceTranslator<T>
       extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<
@@ -1453,45 +1452,45 @@ class FlinkStreamingTransformTranslators {
   }
 
   /** A translator to support {@link TestStream} with Flink. */
-//  private static class TestStreamTranslator<T>
-//      extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<TestStream<T>> {
-//
-//    @Override
-//    void translateNode(TestStream<T> testStream, FlinkStreamingTranslationContext context) {
-//      Coder<T> valueCoder = testStream.getValueCoder();
-//
-//      // Coder for the Elements in the TestStream
-//      TestStream.TestStreamCoder<T> testStreamCoder = TestStream.TestStreamCoder.of(valueCoder);
-//      final byte[] payload;
-//      try {
-//        payload = CoderUtils.encodeToByteArray(testStreamCoder, testStream);
-//      } catch (CoderException e) {
-//        throw new RuntimeException("Could not encode TestStream.", e);
-//      }
-//
-//      SerializableFunction<byte[], TestStream<T>> testStreamDecoder =
-//          bytes -> {
-//            try {
-//              return CoderUtils.decodeFromByteArray(
-//                  TestStream.TestStreamCoder.of(valueCoder), bytes);
-//            } catch (CoderException e) {
-//              throw new RuntimeException("Can't decode TestStream payload.", e);
-//            }
-//          };
-//
-//      WindowedValue.FullWindowedValueCoder<T> elementCoder =
-//          WindowedValue.getFullCoder(valueCoder, GlobalWindow.Coder.INSTANCE);
-//
-//      DataStreamSource<WindowedValue<T>> source =
-//          context
-//              .getExecutionEnvironment()
-//              .addSource(
-//                  new TestStreamSource<>(testStreamDecoder, payload),
-//                  new CoderTypeInformation<>(elementCoder, context.getPipelineOptions()));
-//
-//      context.setOutputDataStream(context.getOutput(testStream), source);
-//    }
-//  }
+  public static class TestStreamTranslator<T>
+      extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<TestStream<T>> {
+
+    @Override
+    public void translateNode(TestStream<T> testStream, FlinkStreamingTranslationContext context) {
+      Coder<T> valueCoder = testStream.getValueCoder();
+
+      // Coder for the Elements in the TestStream
+      TestStream.TestStreamCoder<T> testStreamCoder = TestStream.TestStreamCoder.of(valueCoder);
+      final byte[] payload;
+      try {
+        payload = CoderUtils.encodeToByteArray(testStreamCoder, testStream);
+      } catch (CoderException e) {
+        throw new RuntimeException("Could not encode TestStream.", e);
+      }
+
+      SerializableFunction<byte[], TestStream<T>> testStreamDecoder =
+          bytes -> {
+            try {
+              return CoderUtils.decodeFromByteArray(
+                  TestStream.TestStreamCoder.of(valueCoder), bytes);
+            } catch (CoderException e) {
+              throw new RuntimeException("Can't decode TestStream payload.", e);
+            }
+          };
+
+      WindowedValue.FullWindowedValueCoder<T> elementCoder =
+          WindowedValue.getFullCoder(valueCoder, GlobalWindow.Coder.INSTANCE);
+
+      DataStreamSource<WindowedValue<T>> source =
+          context
+              .getExecutionEnvironment()
+              .addSource(
+                  new TestStreamSource<>(testStreamDecoder, payload),
+                  new CoderTypeInformation<>(elementCoder, context.getPipelineOptions()));
+
+      context.setOutputDataStream(context.getOutput(testStream), source);
+    }
+  }
 
   /**
    * Wrapper for {@link UnboundedSourceWrapper}, which simplifies output type, namely, removes
