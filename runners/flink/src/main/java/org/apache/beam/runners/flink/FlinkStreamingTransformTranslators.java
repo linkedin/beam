@@ -293,10 +293,10 @@ class FlinkStreamingTransformTranslators {
     }
   }
 
-  public static class ImpulseTranslator<T>
+  private static class ImpulseTranslator<T>
       extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<Impulse> {
     @Override
-    public void translateNode(Impulse transform, FlinkStreamingTranslationContext context) {
+    void translateNode(Impulse transform, FlinkStreamingTranslationContext context) {
 
       TypeInformation<WindowedValue<byte[]>> typeInfo =
           new CoderTypeInformation<>(
@@ -318,7 +318,7 @@ class FlinkStreamingTransformTranslators {
     }
   }
 
-  public static class ReadSourceTranslator<T>
+  private static class ReadSourceTranslator<T>
       extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<
           PTransform<PBegin, PCollection<T>>> {
 
@@ -328,7 +328,7 @@ class FlinkStreamingTransformTranslators {
         new UnboundedReadSourceTranslator<>();
 
     @Override
-    public void translateNode(
+    void translateNode(
         PTransform<PBegin, PCollection<T>> transform, FlinkStreamingTranslationContext context) {
       if (context.getOutput(transform).isBounded().equals(PCollection.IsBounded.BOUNDED)) {
         boundedTranslator.translateNode(transform, context);
@@ -1452,11 +1452,11 @@ class FlinkStreamingTransformTranslators {
   }
 
   /** A translator to support {@link TestStream} with Flink. */
-  public static class TestStreamTranslator<T>
+  private static class TestStreamTranslator<T>
       extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<TestStream<T>> {
 
     @Override
-    public void translateNode(TestStream<T> testStream, FlinkStreamingTranslationContext context) {
+    void translateNode(TestStream<T> testStream, FlinkStreamingTranslationContext context) {
       Coder<T> valueCoder = testStream.getValueCoder();
 
       // Coder for the Elements in the TestStream

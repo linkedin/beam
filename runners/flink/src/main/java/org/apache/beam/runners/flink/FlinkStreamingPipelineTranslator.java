@@ -72,8 +72,7 @@ import org.slf4j.LoggerFactory;
   "rawtypes", // TODO(https://issues.apache.org/jira/browse/BEAM-10556)
   "nullness" // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
 })
-
-public class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
+class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
 
   private static final Logger LOG = LoggerFactory.getLogger(FlinkStreamingPipelineTranslator.class);
 
@@ -106,10 +105,6 @@ public class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
     if (transform != null) {
       StreamTransformTranslator<?> translator =
           FlinkStreamingTransformTranslators.getTranslator(transform);
-
-      if (translator == null) {
-        translator = FlinkLiStreamingTransformTranslators.getTranslator(transform);
-      }
 
       if (translator != null && applyCanTranslate(transform, node, translator)) {
         applyStreamingTransform(transform, node, translator);
@@ -187,10 +182,10 @@ public class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
    * is for <b>streaming</b> jobs. For examples of such translators see {@link
    * FlinkStreamingTransformTranslators}.
    */
-  public abstract static class StreamTransformTranslator<T extends PTransform> {
+  abstract static class StreamTransformTranslator<T extends PTransform> {
 
     /** Translate the given transform. */
-    public abstract void translateNode(T transform, FlinkStreamingTranslationContext context);
+    abstract void translateNode(T transform, FlinkStreamingTranslationContext context);
 
     /** Returns true iff this translator can translate the given transform. */
     boolean canTranslate(T transform, FlinkStreamingTranslationContext context) {

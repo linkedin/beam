@@ -47,7 +47,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 @SuppressWarnings({
   "nullness" // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
 })
-public class FlinkStreamingTranslationContext {
+class FlinkStreamingTranslationContext {
 
   private final StreamExecutionEnvironment env;
   private final PipelineOptions options;
