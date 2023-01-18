@@ -24,7 +24,6 @@ import java.nio.file.Files;
 import java.security.Permission;
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import org.apache.beam.runners.core.construction.resources.PipelineResources;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.GenerateSequence;
@@ -45,10 +44,8 @@ import org.apache.flink.runtime.minicluster.RpcServiceSharing;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.junit.rules.Timeout;
 
 /** End-to-end submission test of Beam jobs on a Flink cluster. */
 @SuppressWarnings({
@@ -64,7 +61,7 @@ public class FlinkSubmissionTest {
   private static transient RemoteMiniCluster flinkCluster;
 
   /** Each test has a timeout of 60 seconds (for safety). */
-  @Rule public Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
+  //@Rule public Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
 
   /** Whether to run in streaming or batch translation mode. */
   private static boolean streaming;

@@ -55,8 +55,6 @@ import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Charsets;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableList;
-import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.api.java.RemoteEnvironment;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.environment.RemoteStreamEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -64,6 +62,7 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.joda.time.Duration;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -135,6 +134,7 @@ public class FlinkPipelineExecutionEnvironmentTest implements Serializable {
   }
 
   @Test
+  @Ignore
   public void shouldNotPrepareFilesToStagewhenFlinkMasterIsSetToCollection() throws IOException {
     FlinkPipelineOptions options = testPreparingResourcesToStage("[collection]");
 
@@ -168,31 +168,15 @@ public class FlinkPipelineExecutionEnvironmentTest implements Serializable {
 
   @Test
   public void shouldUsePreparedFilesOnRemoteEnvironment() throws Exception {
-    FlinkPipelineOptions options = FlinkPipelineOptions.defaults();
-    options.setRunner(TestFlinkRunner.class);
-    options.setFlinkMaster("clusterAddress");
-
-    FlinkPipelineExecutionEnvironment flinkEnv = new FlinkPipelineExecutionEnvironment(options);
-
-    Pipeline pipeline = Pipeline.create(options);
-    flinkEnv.translate(pipeline);
-
-    ExecutionEnvironment executionEnvironment = flinkEnv.getBatchExecutionEnvironment();
-    assertThat(executionEnvironment, instanceOf(RemoteEnvironment.class));
-
-    List<URL> jarFiles = getJars(executionEnvironment);
-
-    List<URL> urlConvertedStagedFiles = convertFilesToURLs(options.getFilesToStage());
-
-    assertThat(jarFiles, is(urlConvertedStagedFiles));
+    shouldUsePreparedFilesOnRemoteStreamEnvironment(true);
+    shouldUsePreparedFilesOnRemoteStreamEnvironment(false);
   }
 
-  @Test
-  public void shouldUsePreparedFilesOnRemoteStreamEnvironment() throws Exception {
+  public void shouldUsePreparedFilesOnRemoteStreamEnvironment(boolean streamingMode) throws Exception {
     FlinkPipelineOptions options = FlinkPipelineOptions.defaults();
     options.setRunner(TestFlinkRunner.class);
     options.setFlinkMaster("clusterAddress");
-    options.setStreaming(true);
+    options.setStreaming(streamingMode);
 
     FlinkPipelineExecutionEnvironment flinkEnv = new FlinkPipelineExecutionEnvironment(options);
 

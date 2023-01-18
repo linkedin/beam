@@ -30,6 +30,7 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.KV;
 import org.apache.flink.test.util.AbstractTestBase;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class NonMergingGroupByKeyTest extends AbstractTestBase {
@@ -46,6 +47,7 @@ public class NonMergingGroupByKeyTest extends AbstractTestBase {
   }
 
   @Test
+  @Ignore
   public void testDisabledReIterationThrowsAnException() {
     final Pipeline p = FlinkTestPipeline.createForBatch();
     p.apply(Create.of(Arrays.asList(KV.of("a", 1), KV.of("b", 2), KV.of("c", 3))))

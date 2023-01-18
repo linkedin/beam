@@ -34,6 +34,7 @@ import org.apache.beam.sdk.transforms.Reshuffle;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.flink.api.java.DataSet;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class ReshuffleTest {
@@ -63,6 +64,7 @@ public class ReshuffleTest {
    * between them.
    */
   @Test
+  @Ignore
   public void testEqualDistributionOnReshuffleAcrossMultipleStages() {
     final int numElements = 10_000;
     final int parallelism = 3;

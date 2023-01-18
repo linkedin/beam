@@ -23,6 +23,7 @@ import org.apache.beam.runners.core.construction.resources.PipelineResources;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.flink.api.common.JobExecutionResult;
+import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -47,14 +48,6 @@ class FlinkPipelineExecutionEnvironment {
       LoggerFactory.getLogger(FlinkPipelineExecutionEnvironment.class);
 
   private final FlinkPipelineOptions options;
-
-  /**
-   * The Flink Batch execution environment. This is instantiated to either a {@link
-   * org.apache.flink.api.java.CollectionEnvironment}, a {@link
-   * org.apache.flink.api.java.LocalEnvironment} or a {@link
-   * org.apache.flink.api.java.RemoteEnvironment}, depending on the configuration options.
-   */
-  private ExecutionEnvironment flinkBatchEnv;
 
   /**
    * The Flink Streaming execution environment. This is instantiated to either a {@link
@@ -82,7 +75,6 @@ class FlinkPipelineExecutionEnvironment {
    * org.apache.flink.streaming.api.datastream.DataStream} one.
    */
   public void translate(Pipeline pipeline) {
-    this.flinkBatchEnv = null;
     this.flinkStreamEnv = null;
 
     final boolean hasUnboundedOutput =
@@ -96,16 +88,14 @@ class FlinkPipelineExecutionEnvironment {
     prepareFilesToStageForRemoteClusterExecution(options);
 
     FlinkPipelineTranslator translator;
-    if (options.isStreaming()) {
-      this.flinkStreamEnv = FlinkExecutionEnvironments.createStreamExecutionEnvironment(options);
-      if (hasUnboundedOutput && !flinkStreamEnv.getCheckpointConfig().isCheckpointingEnabled()) {
-        LOG.warn(
-            "UnboundedSources present which rely on checkpointing, but checkpointing is disabled.");
-      }
-      translator = new FlinkStreamingPipelineTranslator(flinkStreamEnv, options);
-    } else {
-      this.flinkBatchEnv = FlinkExecutionEnvironments.createBatchExecutionEnvironment(options);
-      translator = new FlinkBatchPipelineTranslator(flinkBatchEnv, options);
+    this.flinkStreamEnv = FlinkExecutionEnvironments.createStreamExecutionEnvironment(options);
+    if (hasUnboundedOutput && !flinkStreamEnv.getCheckpointConfig().isCheckpointingEnabled()) {
+      LOG.warn(
+          "UnboundedSources present which rely on checkpointing, but checkpointing is disabled.");
+    }
+    translator = new FlinkStreamingPipelineTranslator(flinkStreamEnv, options, options.isStreaming());
+    if (!options.isStreaming()) {
+      flinkStreamEnv.setRuntimeMode(RuntimeExecutionMode.BATCH);
     }
 
     // Transform replacements need to receive the finalized PipelineOptions
@@ -130,9 +120,7 @@ class FlinkPipelineExecutionEnvironment {
   public JobExecutionResult executePipeline() throws Exception {
     final String jobName = options.getJobName();
 
-    if (flinkBatchEnv != null) {
-      return flinkBatchEnv.execute(jobName);
-    } else if (flinkStreamEnv != null) {
+    if (flinkStreamEnv != null) {
       return flinkStreamEnv.execute(jobName);
     } else {
       throw new IllegalStateException("The Pipeline has not yet been translated.");
@@ -151,11 +139,6 @@ class FlinkPipelineExecutionEnvironment {
     // to set the job name here.
     streamGraph.setJobName(p.getOptions().getJobName());
     return streamGraph.getJobGraph();
-  }
-
-  @VisibleForTesting
-  ExecutionEnvironment getBatchExecutionEnvironment() {
-    return flinkBatchEnv;
   }
 
   @VisibleForTesting

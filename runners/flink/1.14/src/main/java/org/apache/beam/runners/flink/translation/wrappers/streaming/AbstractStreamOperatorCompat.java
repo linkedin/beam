@@ -44,9 +44,18 @@ public abstract class AbstractStreamOperatorCompat<OutputT>
     return getTimeServiceManager()
         .map(
             manager -> {
-              final InternalTimeServiceManagerImpl<?> cast =
-                  (InternalTimeServiceManagerImpl<?>) getTimeServiceManagerCompat();
-              return cast.numProcessingTimeTimers();
+              InternalTimeServiceManager<?> tsm = getTimeServiceManagerCompat();
+              if (tsm instanceof InternalTimeServiceManagerImpl) {
+                final InternalTimeServiceManagerImpl<?> cast =
+                    (InternalTimeServiceManagerImpl<?>) getTimeServiceManagerCompat();
+                return cast.numProcessingTimeTimers();
+              } else if (tsm instanceof BatchExecutionInternalTimeServiceManager) {
+                return 0;
+              } else {
+                throw new IllegalStateException(
+                    String.format(
+                        "Unknown implementation of InternalTimerServiceManager. %s", tsm));
+              }
             })
         .orElse(0);
   }

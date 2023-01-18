@@ -29,8 +29,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.SplittableParDo;
-import org.apache.beam.runners.flink.FlinkStreamingTransformTranslators.UnboundedSourceWrapperNoValueWithRecordId;
 import org.apache.beam.runners.flink.translation.wrappers.streaming.io.UnboundedSourceWrapper;
+import org.apache.beam.runners.flink.translation.wrappers.streaming.io.source.bounded.FlinkBoundedSource;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
@@ -51,6 +51,7 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterable
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.transformations.LegacySourceTransformation;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
+import org.apache.flink.streaming.api.transformations.SourceTransformation;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Test;
 
@@ -76,11 +77,9 @@ public class FlinkStreamingTransformTranslatorsTest {
     Object sourceTransform =
         applyReadSourceTransform(transform, PCollection.IsBounded.BOUNDED, env);
 
-    UnboundedSourceWrapperNoValueWithRecordId source =
-        (UnboundedSourceWrapperNoValueWithRecordId)
-            ((LegacySourceTransformation<?>) sourceTransform).getOperator().getUserFunction();
+    FlinkBoundedSource<?> source = (FlinkBoundedSource<?>) ((SourceTransformation<?, ?, ?>) sourceTransform).getSource();
 
-    assertEquals(maxParallelism, source.getUnderlyingSource().getSplitSources().size());
+    assertEquals(maxParallelism, source.getNumSplits());
   }
 
   @Test
@@ -96,11 +95,9 @@ public class FlinkStreamingTransformTranslatorsTest {
     Object sourceTransform =
         applyReadSourceTransform(transform, PCollection.IsBounded.BOUNDED, env);
 
-    UnboundedSourceWrapperNoValueWithRecordId source =
-        (UnboundedSourceWrapperNoValueWithRecordId)
-            ((LegacySourceTransformation<?>) sourceTransform).getOperator().getUserFunction();
+    FlinkBoundedSource<?> source = (FlinkBoundedSource<?>) ((SourceTransformation<?, ?, ?>) sourceTransform).getSource();
 
-    assertEquals(parallelism, source.getUnderlyingSource().getSplitSources().size());
+    assertEquals(parallelism, source.getNumSplits());
   }
 
   @Test
@@ -157,7 +154,7 @@ public class FlinkStreamingTransformTranslatorsTest {
     FlinkStreamingPipelineTranslator.StreamTransformTranslator<PTransform<?, ?>> translator =
         getReadSourceTranslator();
     FlinkStreamingTranslationContext ctx =
-        new FlinkStreamingTranslationContext(env, PipelineOptionsFactory.create());
+        new FlinkStreamingTranslationContext(env, PipelineOptionsFactory.create(), true);
 
     Pipeline pipeline = Pipeline.create();
     PCollection<String> pc =

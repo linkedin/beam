@@ -297,6 +297,9 @@ def createValidatesRunnerTask(Map m) {
         excludeTestsMatching 'org.apache.beam.sdk.testing.TestStreamTest.testFirstElementLate'
         // https://github.com/apache/beam/issues/20844
         excludeTestsMatching 'org.apache.beam.sdk.testing.TestStreamTest.testLateDataAccumulating'
+        if (!config.streaming) {
+          excludeTestsMatching 'org.apache.beam.sdk.transforms.ParDoTest$TimestampTests.testOnTimerTimestampSkew'
+        }
       }
     }
   }

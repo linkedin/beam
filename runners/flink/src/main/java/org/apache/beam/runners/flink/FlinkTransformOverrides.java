@@ -43,11 +43,7 @@ class FlinkTransformOverrides {
                   FlinkStreamingPipelineTranslator.StreamingShardedWriteFactory
                       .writeFilesNeedsOverrides(),
                   new FlinkStreamingPipelineTranslator.StreamingShardedWriteFactory(
-                      checkNotNull(options))))
-          .add(
-              PTransformOverride.of(
-                  PTransformMatchers.urnEqualTo(PTransformTranslation.CREATE_VIEW_TRANSFORM_URN),
-                  CreateStreamingFlinkView.Factory.INSTANCE));
+                      checkNotNull(options))));
     }
     builder
         .add(
@@ -58,7 +54,11 @@ class FlinkTransformOverrides {
                 PTransformMatchers.urnEqualTo(PTransformTranslation.SPLITTABLE_PROCESS_KEYED_URN),
                 options.isStreaming()
                     ? new SplittableParDoViaKeyedWorkItems.OverrideFactory()
-                    : new SplittableParDoNaiveBounded.OverrideFactory()));
+                    : new SplittableParDoNaiveBounded.OverrideFactory()))
+        .add(
+            PTransformOverride.of(
+                PTransformMatchers.urnEqualTo(PTransformTranslation.CREATE_VIEW_TRANSFORM_URN),
+                CreateStreamingFlinkView.Factory.INSTANCE));
     return builder.build();
   }
 }
