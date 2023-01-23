@@ -17,22 +17,18 @@
  */
 package org.apache.beam.runners.samza.runtime;
 
-import static org.apache.beam.runners.core.metrics.MonitoringInfoConstants.TypeUrns.DISTRIBUTION_INT64_TYPE;
 import static org.apache.beam.runners.core.metrics.MonitoringInfoConstants.TypeUrns.LATEST_INT64_TYPE;
 import static org.apache.beam.runners.core.metrics.MonitoringInfoConstants.TypeUrns.SUM_INT64_TYPE;
 import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.decodeInt64Counter;
-import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.decodeInt64Distribution;
 import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.decodeInt64Gauge;
 
 import java.util.Map;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.pipeline.v1.MetricsApi;
-import org.apache.beam.runners.core.metrics.DistributionData;
 import org.apache.beam.runners.core.metrics.MonitoringInfoConstants;
 import org.apache.beam.runners.fnexecution.control.BundleProgressHandler;
 import org.apache.beam.runners.samza.metrics.SamzaMetricsContainer;
 import org.apache.beam.sdk.metrics.Counter;
-import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.Gauge;
 import org.apache.beam.sdk.metrics.MetricName;
 import org.apache.beam.sdk.metrics.MetricsContainer;
@@ -132,12 +128,6 @@ class SamzaMetricsBundleProgressHandler implements BundleProgressHandler {
       case SUM_INT64_TYPE:
         Counter counter = metricsContainer.getCounter(metricName);
         counter.inc(decodeInt64Counter(monitoringInfo.getPayload()));
-        break;
-
-      case DISTRIBUTION_INT64_TYPE:
-        Distribution distribution = metricsContainer.getDistribution(metricName);
-        DistributionData data = decodeInt64Distribution(monitoringInfo.getPayload());
-        distribution.update(data.sum(), data.count(), data.min(), data.max());
         break;
 
       case LATEST_INT64_TYPE:
