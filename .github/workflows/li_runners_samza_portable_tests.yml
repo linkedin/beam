@@ -30,4 +30,4 @@ jobs:
         settings-path: ${{ github.workspace }} # location for the settings.xml file
 
     - name: Validate Portable runner
-      run: ./gradlew :runners:samza:job-server:validatesPortableRunnerEmbedded
+      run: ./gradlew :runners:samza:job-server:validatesPortableRunnerEmbedded; cat /home/runner/work/beam/beam/runners/samza/job-server/build/reports/tests/validatesPortableRunnerEmbedded/index.html
