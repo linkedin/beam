@@ -20,7 +20,6 @@ package org.apache.beam.runners.portability.testing;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 import java.io.IOException;
-import java.util.Collections;
 import org.apache.beam.runners.jobsubmission.JobServerDriver;
 import org.apache.beam.runners.portability.PortableRunner;
 import org.apache.beam.sdk.Pipeline;
@@ -77,8 +76,6 @@ public class TestPortableRunner extends PipelineRunner<PipelineResult> {
       PortablePipelineOptions portableOptions = options.as(PortablePipelineOptions.class);
       portableOptions.setRunner(PortableRunner.class);
       portableOptions.setJobEndpoint(jobServerHostPort);
-      //Linkedin: disable files to stage
-      portableOptions.setFilesToStage(Collections.emptyList());
       PortableRunner runner = PortableRunner.fromOptions(portableOptions);
       PipelineResult result = runner.run(pipeline);
       assertThat("Pipeline did not succeed.", result.waitUntilFinish(), Matchers.is(State.DONE));

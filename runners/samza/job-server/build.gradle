@@ -69,7 +69,8 @@ runShadow {
 def portableValidatesRunnerTask(String name, boolean docker) {
   def tempDir = File.createTempDir()
   def pipelineOptions = [
-      "--configOverride={\"job.non-logged.store.base.dir\":\"" + tempDir + "\"}"
+      "--configOverride={\"job.non-logged.store.base.dir\":\"" + tempDir + "\"}",
+      "--filesToStage="
   ]
   createPortableValidatesRunnerTask(
       name: "validatesPortableRunner${name}",
