@@ -28,6 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.apache.beam.runners.core.construction.TransformInputs;
 import org.apache.beam.runners.samza.SamzaPipelineOptions;
+import org.apache.beam.runners.samza.runtime.OpAdapter;
 import org.apache.beam.runners.samza.runtime.OpMessage;
 import org.apache.beam.runners.samza.util.HashIdGenerator;
 import org.apache.beam.runners.samza.util.StoreIdGenerator;
@@ -88,6 +89,7 @@ public class TranslationContext {
   private final HashIdGenerator idGenerator = new HashIdGenerator();
   private final StoreIdGenerator storeIdGenerator;
 
+  private final SamzaOpMetricRegistry samzaOpMetricRegistry;
   private AppliedPTransform<?, ?, ?> currentTransform;
 
   public TranslationContext(
@@ -99,6 +101,7 @@ public class TranslationContext {
     this.idMap = idMap;
     this.options = options;
     this.storeIdGenerator = new StoreIdGenerator(nonUniqueStateIds);
+    samzaOpMetricRegistry = new SamzaOpMetricRegistry(options.getConfigOverride());
   }
 
   public <OutT> void registerInputMessageStream(
@@ -148,6 +151,13 @@ public class TranslationContext {
     if (messsageStreams.containsKey(pvalue)) {
       throw new IllegalArgumentException("Stream already registered for pvalue: " + pvalue);
     }
+
+    // add another step if registered for Op Stream
+    stream.flatMapAsync(
+        OpAdapter.adapt(
+            new SamzaMetricOp<>(pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
+            this));
+
     messsageStreams.put(pvalue, stream);
   }
 

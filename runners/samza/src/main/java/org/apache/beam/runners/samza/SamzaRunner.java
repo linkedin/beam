@@ -71,6 +71,8 @@ public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
   private static final String BEAM_DOT_GRAPH = "beamDotGraph";
   private static final String BEAM_JSON_GRAPH = "beamJsonGraph";
 
+  public static final String BEAM_TRANSFORMS_WITH_IO = "beamTransformsWithIO";
+
   public static SamzaRunner fromOptions(PipelineOptions opts) {
     final SamzaPipelineOptions samzaOptions =
         PipelineOptionsValidator.validate(SamzaPipelineOptions.class, opts);

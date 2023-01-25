@@ -33,6 +33,7 @@ public class WindowAssignOp<T, W extends BoundedWindow> implements Op<T, T, Void
   @Override
   public void processElement(WindowedValue<T> inputElement, OpEmitter<T> emitter) {
     final Collection<W> windows;
+
     try {
       windows = windowFn.assignWindows(new SamzaAssignContext<>(windowFn, inputElement));
     } catch (Exception e) {

@@ -19,21 +19,38 @@ package org.apache.beam.runners.samza.translation;
 
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument;
 
+import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.auto.service.AutoService;
+import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.samza.SamzaPipelineOptions;
+import org.apache.beam.runners.samza.SamzaRunner;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.runners.TransformHierarchy;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** This class knows all the translators from a primitive BEAM transform to a Samza operator. */
 @SuppressWarnings({
@@ -41,6 +58,7 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Immutabl
   "nullness" // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
 })
 public class SamzaPipelineTranslator {
+  private static final Logger LOG = LoggerFactory.getLogger(SamzaPipelineTranslator.class);
 
   private static final Map<String, TransformTranslator<?>> TRANSLATORS = loadTranslators();
 
@@ -83,6 +101,8 @@ public class SamzaPipelineTranslator {
       ConfigBuilder configBuilder) {
     final ConfigContext ctx = new ConfigContext(idMap, nonUniqueStateIds, options);
 
+    final Map<String, Map.Entry<String, String>> pTransformToInputOutputMap = new HashMap<>();
+
     final TransformVisitorFn configFn =
         new TransformVisitorFn() {
           @Override
@@ -100,11 +120,36 @@ public class SamzaPipelineTranslator {
               configBuilder.putAll(configGenerator.createConfig(transform, node, ctx));
             }
 
+            List<String> inputs =
+                node.getInputs().values().stream()
+                    .map(x -> x.getName())
+                    .collect(Collectors.toList());
+            List<String> outputs =
+                node.getOutputs().values().stream()
+                    .map(x -> x.getName())
+                    .collect(Collectors.toList());
+            pTransformToInputOutputMap.put(
+                node.getFullName(),
+                new AbstractMap.SimpleEntry<>(String.join(",", inputs), String.join(",", outputs)));
             ctx.clearCurrentTransform();
           }
         };
+
     final SamzaPipelineVisitor visitor = new SamzaPipelineVisitor(configFn);
     pipeline.traverseTopologically(visitor);
+    try {
+      ObjectMapper objectMapper = new ObjectMapper();
+      objectMapper.registerModule(
+          new SimpleModule().addSerializer(Map.Entry.class, new MapEntrySerializer()));
+      configBuilder.put(
+          SamzaRunner.BEAM_TRANSFORMS_WITH_IO,
+          objectMapper.writeValueAsString(pTransformToInputOutputMap));
+    } catch (IOException e) {
+      LOG.error(
+          "Unable to serialize {} using {}",
+          SamzaRunner.BEAM_TRANSFORMS_WITH_IO,
+          pTransformToInputOutputMap);
+    }
   }
 
   private interface TransformVisitorFn {
@@ -203,6 +248,28 @@ public class SamzaPipelineTranslator {
         getTransformPayloadTranslators() {
       return ImmutableMap.of(
           SamzaPublishView.class, new SamzaPublishView.SamzaPublishViewPayloadTranslator());
+    }
+  }
+
+  private static final class MapEntrySerializer extends JsonSerializer<Map.Entry> {
+    @Override
+    public void serialize(Map.Entry value, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      gen.writeStartObject();
+      gen.writeObjectField("left", value.getKey());
+      gen.writeObjectField("right", value.getValue());
+      gen.writeEndObject();
+    }
+  }
+
+  public static final class MapEntryDeserializer extends JsonDeserializer<Map.Entry> {
+    @Override
+    public Map.Entry deserialize(JsonParser jp, DeserializationContext ctxt)
+        throws IOException, JacksonException {
+      JsonNode node = jp.getCodec().readTree(jp);
+      String key = node.get("left").textValue();
+      String value = node.get("right").textValue();
+      return new AbstractMap.SimpleEntry<>(key, value);
     }
   }
 }
