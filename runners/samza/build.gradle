@@ -83,7 +83,6 @@ dependencies {
   implementation project(":sdks:java:fn-execution")
   testImplementation project(path: ":sdks:java:core", configuration: "shadowTest")
   testImplementation project(path: ":runners:core-java", configuration: "testRuntimeMigration")
-  testImplementation project(":sdks:java:harness")
   testImplementation library.java.hamcrest
   testImplementation library.java.junit
   testImplementation library.java.mockito_core
