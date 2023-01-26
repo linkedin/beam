@@ -26,16 +26,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.beam.runners.flink.translation.wrappers.streaming.io.source.compat.SplitEnumeratorCompat;
 import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.options.PipelineOptions;
-import org.apache.flink.api.connector.source.SplitEnumerator;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 public class FlinkBoundedSourceSplitEnumerator<OutputT>
-    implements SplitEnumerator<FlinkBoundedSourceSplit<OutputT>, Map<Integer, List<FlinkBoundedSourceSplit<OutputT>>>> {
+    implements
+    SplitEnumeratorCompat<FlinkBoundedSourceSplit<OutputT>, Map<Integer, List<FlinkBoundedSourceSplit<OutputT>>>> {
   private static final Logger LOG = LoggerFactory.getLogger(FlinkBoundedSourceSplitEnumerator.class);
   private final SplitEnumeratorContext<FlinkBoundedSourceSplit<OutputT>> context;
   private final BoundedSource<OutputT> beamSource;
@@ -108,6 +109,12 @@ public class FlinkBoundedSourceSplitEnumerator<OutputT>
       LOG.info("There is no split for subtask {}. Signaling no more splits.", subtaskId);
       context.signalNoMoreSplits(subtaskId);
     }
+  }
+
+  @Override
+  public Map<Integer, List<FlinkBoundedSourceSplit<OutputT>>> snapshotState(long checkpointId) throws Exception {
+    LOG.info("Taking snapshot for checkpoint {}", checkpointId);
+    return snapshotState();
   }
 
   @Override

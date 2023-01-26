@@ -20,6 +20,7 @@ package org.apache.beam.runners.flink.translation.wrappers.streaming;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.InternalTimeServiceManager;
 import org.apache.flink.streaming.api.operators.InternalTimeServiceManagerImpl;
+import org.apache.flink.streaming.api.operators.sorted.state.BatchExecutionInternalTimeServiceManager;
 
 /** Compatibility layer for {@link AbstractStreamOperator} breaking changes. */
 public abstract class AbstractStreamOperatorCompat<OutputT>

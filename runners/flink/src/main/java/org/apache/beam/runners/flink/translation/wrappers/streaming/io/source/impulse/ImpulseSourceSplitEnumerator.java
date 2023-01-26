@@ -22,7 +22,7 @@ package org.apache.beam.runners.flink.translation.wrappers.streaming.io.source.i
 import java.io.IOException;
 import java.util.List;
 import javax.annotation.Nullable;
-import org.apache.flink.api.connector.source.SplitEnumerator;
+import org.apache.beam.runners.flink.translation.wrappers.streaming.io.source.compat.SplitEnumeratorCompat;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 
 
@@ -31,7 +31,7 @@ import org.apache.flink.api.connector.source.SplitEnumeratorContext;
  * be a single global impulse sent regardless of the parallelism of the Source. This is
  * achieved by assigning a global singleton split to one of the SourceReaders.
  */
-public class ImpulseSourceSplitEnumerator implements SplitEnumerator<ImpulseSplit, Boolean> {
+public class ImpulseSourceSplitEnumerator implements SplitEnumeratorCompat<ImpulseSplit, Boolean> {
   private final SplitEnumeratorContext<ImpulseSplit> context;
   private boolean hasAssignedSplit = false;
 
@@ -63,6 +63,11 @@ public class ImpulseSourceSplitEnumerator implements SplitEnumerator<ImpulseSpli
       hasAssignedSplit = true;
     }
     context.signalNoMoreSplits(subtaskId);
+  }
+
+  @Override
+  public Boolean snapshotState(long checkpointId) throws Exception {
+    return snapshotState();
   }
 
   @Override
