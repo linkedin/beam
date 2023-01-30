@@ -86,7 +86,7 @@ class SamzaMetricsBundleProgressHandler implements BundleProgressHandler {
   public void onCompleted(BeamFnApi.ProcessBundleResponse response) {
     response.getMonitoringInfosList().stream()
         .filter(monitoringInfo -> !monitoringInfo.getPayload().isEmpty())
-        .forEach(this::parseAndUpdateMetric)
+        .map(this::parseAndUpdateMetric)
         .distinct()
         .forEach(samzaMetricsContainer::updateMetrics);
   }
