@@ -111,7 +111,8 @@ public class SamzaMetricsBundleProgressHandlerTest {
           }
         };
     metricsRegistryMap = new MetricsRegistryMap();
-    // Delete the config parameter, and uncomment the following line after we get the newer beam patches.
+    // Delete the config parameter, and uncomment the following line after we get the newer beam
+    // patches.
     // samzaMetricsContainer = new SamzaMetricsContainer(metricsRegistryMap);
     samzaMetricsContainer = new SamzaMetricsContainer(metricsRegistryMap, config);
     samzaMetricsBundleProgressHandler =
