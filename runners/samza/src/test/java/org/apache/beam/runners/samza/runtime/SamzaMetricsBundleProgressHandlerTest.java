@@ -57,6 +57,7 @@ public class SamzaMetricsBundleProgressHandlerTest {
 
   @Before
   public void setup() {
+    // Delete this parameter when SamzaMetricsContainer is updated in the future patches.
     Config config =
         new Config() {
           @Override
@@ -110,6 +111,8 @@ public class SamzaMetricsBundleProgressHandlerTest {
           }
         };
     metricsRegistryMap = new MetricsRegistryMap();
+    // Delete the config parameter, and uncomment the following line after we get the newer beam patches.
+    // samzaMetricsContainer = new SamzaMetricsContainer(metricsRegistryMap);
     samzaMetricsContainer = new SamzaMetricsContainer(metricsRegistryMap, config);
     samzaMetricsBundleProgressHandler =
         new SamzaMetricsBundleProgressHandler(
