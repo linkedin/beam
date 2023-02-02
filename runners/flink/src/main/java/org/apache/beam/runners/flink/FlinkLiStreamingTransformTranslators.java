@@ -37,10 +37,10 @@ public class FlinkLiStreamingTransformTranslators {
 
   // here you can find all the available LinkedIn translators.
   static {
-    for (FlinkCustomTransformRegistrar registrar :
-        ServiceLoader.load(FlinkCustomTransformRegistrar.class)) {
-      for (String urn : registrar.getTransformPayloadTranslators().keySet()) {
-        TRANSLATORS.put(urn, registrar.getTransformPayloadTranslators().get(urn));
+    for (FlinkCustomTransformTranslatorRegistrar registrar :
+        ServiceLoader.load(FlinkCustomTransformTranslatorRegistrar.class)) {
+      for (String urn : registrar.getTransformTranslators().keySet()) {
+        TRANSLATORS.put(urn, registrar.getTransformTranslators().get(urn));
       }
     }
   }
