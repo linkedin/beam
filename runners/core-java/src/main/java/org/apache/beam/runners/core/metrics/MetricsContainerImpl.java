@@ -23,12 +23,14 @@ import static org.apache.beam.runners.core.metrics.MonitoringInfoConstants.TypeU
 import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.decodeInt64Counter;
 import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.decodeInt64Distribution;
 import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.decodeInt64Gauge;
+import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.encodeInt64Gauge;
 import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.encodeInt64Counter;
 import static org.apache.beam.runners.core.metrics.MonitoringInfoEncodings.encodeInt64Distribution;
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -315,11 +317,33 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
     return builder.build();
   }
 
+  /** @return The MonitoringInfo metadata from the gauge metric. */
+  private @Nullable SimpleMonitoringInfoBuilder gaugeToMonitoringMetadata(MetricKey metricKey) {
+    return metricToMonitoringMetadata(
+            metricKey,
+            MonitoringInfoConstants.TypeUrns.LATEST_INT64_TYPE,
+            MonitoringInfoConstants.Urns.USER_LATEST_INT64);
+  }
+
+  /**
+   * @param metricUpdate
+   * @return The MonitoringInfo generated from the gauge metricUpdate.
+   */
+  private @Nullable MonitoringInfo gaugeUpdateToMonitoringInfo(
+          MetricUpdate<GaugeData> metricUpdate) {
+    SimpleMonitoringInfoBuilder builder = distributionToMonitoringMetadata(metricUpdate.getKey());
+    if (builder == null) {
+      return null;
+    }
+    builder.setInt64LatestValue(metricUpdate.getUpdate());
+    return builder.build();
+  }
+
   /** Return the cumulative values for any metrics in this container as MonitoringInfos. */
   @Override
   public Iterable<MonitoringInfo> getMonitoringInfos() {
     // Extract user metrics and store as MonitoringInfos.
-    ArrayList<MonitoringInfo> monitoringInfos = new ArrayList<MonitoringInfo>();
+    List<MonitoringInfo> monitoringInfos = new ArrayList<>();
     MetricUpdates metricUpdates = this.getUpdates();
 
     for (MetricUpdate<Long> metricUpdate : metricUpdates.counterUpdates()) {
@@ -332,6 +356,14 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
     for (MetricUpdate<org.apache.beam.runners.core.metrics.DistributionData> metricUpdate :
         metricUpdates.distributionUpdates()) {
       MonitoringInfo mi = distributionUpdateToMonitoringInfo(metricUpdate);
+      if (mi != null) {
+        monitoringInfos.add(mi);
+      }
+    }
+
+    for (MetricUpdate<GaugeData> metricUpdate :
+            metricUpdates.gaugeUpdates()) {
+      MonitoringInfo mi = gaugeUpdateToMonitoringInfo(metricUpdate);
       if (mi != null) {
         monitoringInfos.add(mi);
       }
@@ -355,6 +387,14 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
           getShortId(metricUpdate.getKey(), this::distributionToMonitoringMetadata, shortIds);
       if (shortId != null) {
         builder.put(shortId, encodeInt64Distribution(metricUpdate.getUpdate()));
+      }
+    }
+    for (MetricUpdate<org.apache.beam.runners.core.metrics.GaugeData> metricUpdate :
+            metricUpdates.gaugeUpdates()) {
+      String shortId =
+              getShortId(metricUpdate.getKey(), this::gaugeToMonitoringMetadata, shortIds);
+      if (shortId != null) {
+        builder.put(shortId, encodeInt64Gauge(metricUpdate.getUpdate()));
       }
     }
     return builder.build();

@@ -41,6 +41,8 @@ public final class MonitoringInfoConstants {
     public static final String FINISH_BUNDLE_MSECS =
         extractUrn(MonitoringInfoSpecs.Enum.FINISH_BUNDLE_MSECS);
     public static final String TOTAL_MSECS = extractUrn(MonitoringInfoSpecs.Enum.TOTAL_MSECS);
+    public static final String USER_LATEST_INT64 = extractUrn(MonitoringInfoSpecs.Enum.USER_LATEST_INT64);
+    public static final String USER_LATEST_DOUBLE = extractUrn(MonitoringInfoSpecs.Enum.USER_LATEST_DOUBLE);
     public static final String USER_SUM_INT64 = extractUrn(MonitoringInfoSpecs.Enum.USER_SUM_INT64);
     public static final String USER_SUM_DOUBLE =
         extractUrn(MonitoringInfoSpecs.Enum.USER_SUM_DOUBLE);
