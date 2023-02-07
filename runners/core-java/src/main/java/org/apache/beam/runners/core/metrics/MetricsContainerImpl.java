@@ -325,20 +325,6 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
             MonitoringInfoConstants.Urns.USER_LATEST_INT64);
   }
 
-  /**
-   * @param metricUpdate
-   * @return The MonitoringInfo generated from the gauge metricUpdate.
-   */
-  private @Nullable MonitoringInfo gaugeUpdateToMonitoringInfo(
-          MetricUpdate<GaugeData> metricUpdate) {
-    SimpleMonitoringInfoBuilder builder = distributionToMonitoringMetadata(metricUpdate.getKey());
-    if (builder == null) {
-      return null;
-    }
-    builder.setInt64LatestValue(metricUpdate.getUpdate());
-    return builder.build();
-  }
-
   /** Return the cumulative values for any metrics in this container as MonitoringInfos. */
   @Override
   public Iterable<MonitoringInfo> getMonitoringInfos() {
@@ -356,14 +342,6 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
     for (MetricUpdate<org.apache.beam.runners.core.metrics.DistributionData> metricUpdate :
         metricUpdates.distributionUpdates()) {
       MonitoringInfo mi = distributionUpdateToMonitoringInfo(metricUpdate);
-      if (mi != null) {
-        monitoringInfos.add(mi);
-      }
-    }
-
-    for (MetricUpdate<GaugeData> metricUpdate :
-            metricUpdates.gaugeUpdates()) {
-      MonitoringInfo mi = gaugeUpdateToMonitoringInfo(metricUpdate);
       if (mi != null) {
         monitoringInfos.add(mi);
       }
