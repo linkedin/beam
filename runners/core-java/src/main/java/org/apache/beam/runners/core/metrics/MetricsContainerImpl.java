@@ -359,7 +359,7 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
         builder.put(shortId, encodeInt64Counter(metricUpdate.getUpdate()));
       }
     }
-    for (MetricUpdate<org.apache.beam.runners.core.metrics.DistributionData> metricUpdate :
+    for (MetricUpdate<DistributionData> metricUpdate :
         metricUpdates.distributionUpdates()) {
       String shortId =
           getShortId(metricUpdate.getKey(), this::distributionToMonitoringMetadata, shortIds);
@@ -367,7 +367,7 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
         builder.put(shortId, encodeInt64Distribution(metricUpdate.getUpdate()));
       }
     }
-    for (MetricUpdate<org.apache.beam.runners.core.metrics.GaugeData> metricUpdate :
+    for (MetricUpdate<GaugeData> metricUpdate :
             metricUpdates.gaugeUpdates()) {
       String shortId =
               getShortId(metricUpdate.getKey(), this::gaugeToMonitoringMetadata, shortIds);
