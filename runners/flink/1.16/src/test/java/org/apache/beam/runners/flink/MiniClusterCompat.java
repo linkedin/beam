@@ -17,10 +17,14 @@
  */
 package org.apache.beam.runners.flink;
 
-import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import org.apache.flink.api.common.JobID;
+import org.apache.flink.core.execution.SavepointFormatType;
+import org.apache.flink.runtime.minicluster.MiniCluster;
 
-/** A registrar of Flink StreamTransformTranslator(s) to extend custom translations. */
-public interface FlinkCustomTransformTranslatorRegistrar {
-  Map<String, FlinkStreamingPipelineTranslator.StreamTransformTranslator<?>>
-      getTransformTranslators();
+public class MiniClusterCompat {
+  public static CompletableFuture<String> triggerSavepoint(
+      MiniCluster cluster, JobID jobId, String targetDirectory, boolean cancelJob) {
+    return cluster.triggerSavepoint(jobId, targetDirectory, cancelJob, SavepointFormatType.DEFAULT);
+  }
 }
