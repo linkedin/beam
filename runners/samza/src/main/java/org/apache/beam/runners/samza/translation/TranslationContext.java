@@ -155,7 +155,8 @@ public class TranslationContext {
     // add another step if registered for Op Stream
     stream.flatMapAsync(
         OpAdapter.adapt(
-            new SamzaMetricOp<>(pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
+            new SamzaOutputMetricOp<>(
+                pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
             this));
 
     messsageStreams.put(pvalue, stream);
@@ -175,6 +176,14 @@ public class TranslationContext {
     if (stream == null) {
       throw new IllegalArgumentException("No stream registered for pvalue: " + pvalue);
     }
+
+    // add another step if registered for Op Stream
+    stream.flatMapAsync(
+        OpAdapter.adapt(
+            new SamzaInputMetricOp<>(
+                pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
+            this));
+
     return stream;
   }
 

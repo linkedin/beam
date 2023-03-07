@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.samza.translation;
 
+import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.samza.metrics.Counter;
@@ -25,7 +26,7 @@ import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.metrics.Timer;
 
 // Todo check per container vs per task wiring of this
-public class SamzaOpMetrics {
+public class SamzaOpMetrics implements Serializable {
   private static final String GROUP = SamzaOpMetrics.class.getSimpleName();
 
   private static final String METRIC_NAME_PATTERN = "%s-%s";
@@ -33,23 +34,21 @@ public class SamzaOpMetrics {
   private static final String TRANSFORM_WATERMARK_PROGRESS = "watermark-progress";
   private static final String TRANSFORM_IP_THROUGHPUT = "num-input-messages";
   private static final String TRANSFORM_OP_THROUGHPUT = "num-output-messages";
-
-  private final MetricsRegistry metricsRegistry;
   private final Map<String, Timer> transformLatency;
   private final Map<String, Gauge<Long>> transformWatermarkProgress;
   private final Map<String, Counter> transformInputThroughput;
   private final Map<String, Counter> transformOutputThroughPut;
 
-  public SamzaOpMetrics(MetricsRegistry registry) {
+  public SamzaOpMetrics() {
     this.transformLatency = new ConcurrentHashMap<>();
     this.transformOutputThroughPut = new ConcurrentHashMap<>();
     this.transformWatermarkProgress = new ConcurrentHashMap<>();
     this.transformInputThroughput = new ConcurrentHashMap<>();
-    this.metricsRegistry = registry;
   }
 
-  public void register(String transformName) {
-    // TODO: tune the timer reservoir, by default it holds upto 5 mins of data in skip-lists
+  public void register(String transformName, MetricsRegistry metricsRegistry) {
+    // TODO: Check the length of metric name is not exceeding the ingraphs limit defined
+    // TODO: Tune the timer reservoir, by default it holds upto 5 mins of data in skip-lists
     transformLatency.putIfAbsent(
         transformName,
         metricsRegistry.newTimer(

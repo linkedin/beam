@@ -17,46 +17,54 @@
  */
 package org.apache.beam.runners.samza.translation;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.beam.runners.samza.runtime.KeyedTimerData;
 import org.apache.beam.runners.samza.runtime.Op;
 import org.apache.beam.runners.samza.runtime.OpEmitter;
-import org.apache.beam.sdk.util.WindowedValue;
-import org.joda.time.Instant;
+import org.apache.beam.runners.samza.util.SamzaOpUtils;
+import org.apache.samza.config.Config;
+import org.apache.samza.context.Context;
+import org.apache.samza.metrics.MetricsRegistry;
+import org.apache.samza.operators.Scheduler;
 
-public class SamzaMetricOp<T> implements Op<T, T, Void> {
-  private int count;
-  private long sumOfTimestamps;
-  private final String pValue;
-  private final String transformFullName;
-  private final SamzaOpMetricRegistry samzaOpMetricRegistry;
+public abstract class SamzaMetricOp<T> implements Op<T, T, Void> {
+  protected final String transformFullName;
+  protected final SamzaOpMetricRegistry samzaOpMetricRegistry;
+  private MetricsRegistry metricsRegistry;
+  protected List<String> transformInputs;
+  protected List<String> transformOutputs;
+  protected final String pValue;
 
   public SamzaMetricOp(
       String pValue, String transformFullName, SamzaOpMetricRegistry samzaOpMetricRegistry) {
-    this.count = 0;
-    this.sumOfTimestamps = 0L;
-    this.pValue = pValue;
     this.transformFullName = transformFullName;
     this.samzaOpMetricRegistry = samzaOpMetricRegistry;
+    this.pValue = pValue;
   }
 
   @Override
-  public void processElement(WindowedValue<T> inputElement, OpEmitter<T> emitter) {
-    // sum of count of elements
-    count++;
-    // sum of arrival time - overflow exception sensitive
-    sumOfTimestamps = Math.addExact(sumOfTimestamps, System.currentTimeMillis());
-    emitter.emitElement(inputElement);
-  }
-
-  @Override
-  public void processWatermark(Instant watermark, OpEmitter<T> emitter) {
-    long avg = Math.floorDiv(sumOfTimestamps, count);
-    // Update MetricOp Registry with counters
-    samzaOpMetricRegistry.updateAvgStartTimeMap(pValue, watermark.getMillis(), avg);
-    // reset all counters
-    count = 0;
-    sumOfTimestamps = 0L;
-    // emit the metric
-    samzaOpMetricRegistry.emitLatencyMetric(transformFullName, watermark.getMillis());
-    Op.super.processWatermark(watermark, emitter);
+  @SuppressWarnings("unchecked")
+  public void open(
+      Config config,
+      Context context,
+      Scheduler<KeyedTimerData<Void>> timerRegistry,
+      OpEmitter<T> emitter) {
+    Map.Entry<String, String> transformInputOutput =
+        SamzaOpUtils.getTransformToIOMap(config).get(transformFullName);
+    transformInputs =
+        Arrays.stream(transformInputOutput.getKey().split(","))
+            .filter(item -> !item.isEmpty())
+            .collect(Collectors.toList());
+    transformOutputs =
+        Arrays.stream(transformInputOutput.getValue().split(","))
+            .filter(item -> !item.isEmpty())
+            .collect(Collectors.toList());
+    // TODO: read config to switch to per task metrics on demand
+    this.metricsRegistry = context.getContainerContext().getContainerMetricsRegistry();
+    // init the metric
+    samzaOpMetricRegistry.getSamzaOpMetrics().register(transformFullName, metricsRegistry);
   }
 }
