@@ -20,54 +20,24 @@ package org.apache.beam.runners.samza.translation;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SamzaOpMetricRegistry implements Serializable {
-  private static final Logger LOG = LoggerFactory.getLogger(SamzaOpMetricRegistry.class);
 
+  // TODO: we dont need per pvalue, if every element has input we need avg arrival time of all
+  // elements between two watermark
   // transformName -> pValue/pCollection -> Map<watermarkId, avgArrivalTime>
   private final ConcurrentHashMap<String, ConcurrentHashMap<String, ConcurrentHashMap<Long, Long>>>
       avgStartTimeMap;
 
+  private final ConcurrentHashMap<String, ConcurrentHashMap<Long,Long>> arrivalTimePreviousWatermark;
   private final SamzaOpMetrics samzaOpMetrics;
 
-  // transformName -> List<inputPCollections>,List<outputPCollections>
-  // private final Map<String, Map.Entry<String, String>> transformNameToInputOutput;
-
-  // private final ConcurrentHashMap<String, Gauge> transformNameToLatency;
-
-  public SamzaOpMetricRegistry(Map<String, String> config) {
+  public SamzaOpMetricRegistry() {
     this.avgStartTimeMap = new ConcurrentHashMap<>();
     this.samzaOpMetrics = new SamzaOpMetrics();
-    //    TypeReference<Map<String, Map.Entry<String, String>>> typeRef =
-    //        new TypeReference<Map<String, Map.Entry<String, String>>>() {};
-    //    try {
-    //      ObjectMapper objectMapper = new ObjectMapper();
-    //      objectMapper.registerModule(
-    //          new SimpleModule()
-    //              .addDeserializer(
-    //                  Map.Entry.class, new SamzaPipelineTranslator.MapEntryDeserializer()));
-    //      this.transformNameToInputOutput =
-    //          objectMapper.readValue(
-    //              config.get(SamzaRunner.BEAM_TRANSFORMS_WITH_IO),
-    //              typeRef); // read from config deserialize
-    //    } catch (JsonProcessingException e) {
-    //      throw new RuntimeException(e);
-    //    }
-    //    this.transformNameToLatency = new ConcurrentHashMap<>();
-    //    // init this metric map
-    //    transformNameToInputOutput
-    //        .keySet()
-    //        .forEach(
-    //            transform -> {
-    //              transformNameToLatency.put(
-    //                  transform, Metrics.gauge(SamzaMetricOp.class, transform +
-    // "-handle-message-ms"));
-    //            });
+    this.arrivalTimePreviousWatermark = new ConcurrentHashMap<>();
   }
 
   public SamzaOpMetrics getSamzaOpMetrics() {
@@ -88,13 +58,20 @@ public class SamzaOpMetricRegistry implements Serializable {
     avgStartMap.get(pValue).put(watermark, avg);
   }
 
+  // TODO: check the case where input has no elements, only watermarks are propogated
   void emitLatencyMetric(
       String transformName,
       List<String> transformInputs,
       List<String> transformOutputs,
-      Long watermark) {
+      Long watermark,
+      String taskName) {
     ConcurrentHashMap<String, ConcurrentHashMap<Long, Long>> avgStartMap =
         avgStartTimeMap.get(transformName);
+
+    System.out.println(
+        String.format(
+            "Emit Metric TransformName %s for: %s and watermark: %s for task: %s", transformName, transformName, watermark, taskName));
+
     if (!transformInputs.isEmpty() && !transformOutputs.isEmpty()) { // skip the io operators
       List<Long> inputPValueStartTimes =
           transformInputs.stream()
@@ -110,11 +87,19 @@ public class SamzaOpMetricRegistry implements Serializable {
 
       Long startTime = Collections.min(inputPValueStartTimes);
       Long endTime = Collections.max(outputPValueStartTimes);
-      Long avgLatency = startTime - endTime;
+
+      if (startTime != null && endTime != null) {
+      } else {
+        System.out.println(
+            String.format(
+                "Start Time: [%s] or End Time: [%s] found is null for: %s and watermark: %s for task: %s",
+                startTime, endTime, transformName, watermark, taskName));
+      }
+
+      Long avgLatency = endTime - startTime;
       // TODO: remove the entries for the watermark from in-memory map
       samzaOpMetrics.getTransformLatencyMetric(transformName).update(avgLatency);
-    } else {
-      LOG.info("Water in IO Transform {} for watermark {}", transformName, watermark);
+
     }
   }
 }

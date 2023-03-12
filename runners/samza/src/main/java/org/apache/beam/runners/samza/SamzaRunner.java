@@ -148,15 +148,18 @@ public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
 
     final String jsonGraph = PipelineJsonRenderer.toJsonString(pipeline);
     LOG.info("Beam pipeline JSON graph:\n{}", jsonGraph);
-
+;
     final Map<PValue, String> idMap = PViewToIdMapper.buildIdMap(pipeline);
     final Set<String> nonUniqueStateIds = StateIdParser.scan(pipeline);
+    final String transformIOMap =
+        SamzaPipelineTranslator.buildTransformIOMap(pipeline, options, idMap, nonUniqueStateIds);
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
 
     SamzaPipelineTranslator.createConfig(
         pipeline, options, idMap, nonUniqueStateIds, configBuilder);
     configBuilder.put(BEAM_DOT_GRAPH, dotGraph);
     configBuilder.put(BEAM_JSON_GRAPH, jsonGraph);
+    configBuilder.put(BEAM_TRANSFORMS_WITH_IO, transformIOMap);
 
     final Config config = configBuilder.build();
     options.setConfigOverride(config);

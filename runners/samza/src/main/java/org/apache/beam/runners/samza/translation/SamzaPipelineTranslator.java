@@ -37,17 +37,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.samza.SamzaPipelineOptions;
 import org.apache.beam.runners.samza.SamzaRunner;
+import org.apache.beam.runners.samza.util.SamzaOpUtils;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.runners.TransformHierarchy;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,8 +63,6 @@ import org.slf4j.LoggerFactory;
   "nullness" // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
 })
 public class SamzaPipelineTranslator {
-  private static final Logger LOG = LoggerFactory.getLogger(SamzaPipelineTranslator.class);
-
   private static final Map<String, TransformTranslator<?>> TRANSLATORS = loadTranslators();
 
   private static Map<String, TransformTranslator<?>> loadTranslators() {
@@ -100,9 +103,6 @@ public class SamzaPipelineTranslator {
       Set<String> nonUniqueStateIds,
       ConfigBuilder configBuilder) {
     final ConfigContext ctx = new ConfigContext(idMap, nonUniqueStateIds, options);
-
-    final Map<String, Map.Entry<String, String>> pTransformToInputOutputMap = new HashMap<>();
-
     final TransformVisitorFn configFn =
         new TransformVisitorFn() {
           @Override
@@ -119,37 +119,34 @@ public class SamzaPipelineTranslator {
                   (TransformConfigGenerator<T>) translator;
               configBuilder.putAll(configGenerator.createConfig(transform, node, ctx));
             }
-
-            List<String> inputs =
-                node.getInputs().values().stream()
-                    .map(x -> x.getName())
-                    .collect(Collectors.toList());
-            List<String> outputs =
-                node.getOutputs().values().stream()
-                    .map(x -> x.getName())
-                    .collect(Collectors.toList());
-            pTransformToInputOutputMap.put(
-                node.getFullName(),
-                new AbstractMap.SimpleEntry<>(String.join(",", inputs), String.join(",", outputs)));
-            ctx.clearCurrentTransform();
           }
         };
+    final SamzaPipelineVisitor visitor = new SamzaPipelineVisitor(configFn);
+    pipeline.traverseTopologically(visitor);
+  }
+
+  public static String buildTransformIOMap(Pipeline pipeline, SamzaPipelineOptions options, Map<PValue, String> idMap,
+      Set<String> nonUniqueStateIds) {
+    final ConfigContext ctx = new ConfigContext(idMap, nonUniqueStateIds, options);
+
+    final Map<String, Map.Entry<String, String>> pTransformToInputOutputMap = new HashMap<>();
+    final TransformVisitorFn configFn = new TransformVisitorFn() {
+      @Override
+      public <T extends PTransform<?, ?>> void apply(T transform, TransformHierarchy.Node node, Pipeline pipeline,
+          TransformTranslator<T> translator) {
+        ctx.setCurrentTransform(node.toAppliedPTransform(pipeline));
+        List<String> inputs = ioFunc(node.getInputs()).get();
+        List<String> outputs = ioFunc(node.getOutputs()).get();
+        pTransformToInputOutputMap.put(node.getFullName(),
+            new AbstractMap.SimpleEntry<>(String.join(SamzaOpUtils.TRANSFORM_IO_MAP_DELIMITER, inputs),
+                String.join(SamzaOpUtils.TRANSFORM_IO_MAP_DELIMITER, outputs)));
+        ctx.clearCurrentTransform();
+      }
+    };
 
     final SamzaPipelineVisitor visitor = new SamzaPipelineVisitor(configFn);
     pipeline.traverseTopologically(visitor);
-    try {
-      ObjectMapper objectMapper = new ObjectMapper();
-      objectMapper.registerModule(
-          new SimpleModule().addSerializer(Map.Entry.class, new MapEntrySerializer()));
-      configBuilder.put(
-          SamzaRunner.BEAM_TRANSFORMS_WITH_IO,
-          objectMapper.writeValueAsString(pTransformToInputOutputMap));
-    } catch (IOException e) {
-      LOG.error(
-          "Unable to serialize {} using {}",
-          SamzaRunner.BEAM_TRANSFORMS_WITH_IO,
-          pTransformToInputOutputMap);
-    }
+    return SamzaOpUtils.serializeTransformIOMap(pTransformToInputOutputMap);
   }
 
   private interface TransformVisitorFn {
@@ -251,25 +248,7 @@ public class SamzaPipelineTranslator {
     }
   }
 
-  private static final class MapEntrySerializer extends JsonSerializer<Map.Entry> {
-    @Override
-    public void serialize(Map.Entry value, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
-      gen.writeStartObject();
-      gen.writeObjectField("left", value.getKey());
-      gen.writeObjectField("right", value.getValue());
-      gen.writeEndObject();
-    }
-  }
-
-  public static final class MapEntryDeserializer extends JsonDeserializer<Map.Entry> {
-    @Override
-    public Map.Entry deserialize(JsonParser jp, DeserializationContext ctxt)
-        throws IOException, JacksonException {
-      JsonNode node = jp.getCodec().readTree(jp);
-      String key = node.get("left").textValue();
-      String value = node.get("right").textValue();
-      return new AbstractMap.SimpleEntry<>(key, value);
-    }
+  private static Supplier<List<String>> ioFunc(Map<TupleTag<?>, PCollection <?>> map){
+    return () -> map.values().stream().map(pColl -> pColl.getName()).collect(Collectors.toList());
   }
 }

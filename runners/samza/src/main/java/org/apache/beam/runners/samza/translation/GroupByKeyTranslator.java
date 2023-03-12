@@ -49,11 +49,14 @@ import org.apache.beam.sdk.util.AppliedCombineFn;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterables;
 import org.apache.samza.operators.MessageStream;
 import org.apache.samza.serializers.KVSerde;
+import org.apache.samza.system.IncomingMessageEnvelope;
+
 
 /** Translates {@link GroupByKey} to Samza {@link GroupByKeyOp}. */
 @SuppressWarnings({"keyfor", "nullness"}) // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
@@ -84,7 +87,7 @@ class GroupByKeyTranslator<K, InputT, OutputT>
     final WindowingStrategy<?, BoundedWindow> windowingStrategy =
         (WindowingStrategy<?, BoundedWindow>) input.getWindowingStrategy();
 
-    final MessageStream<OpMessage<KV<K, InputT>>> inputStream = ctx.getMessageStream(input);
+    final MessageStream<OpMessage<KV<K, InputT>>> inputStream = ctx.getMessageStream(input, false);
 
     final KvCoder<K, InputT> kvInputCoder = (KvCoder<K, InputT>) input.getCoder();
     final Coder<WindowedValue<KV<K, InputT>>> elementCoder = SamzaCoders.of(input);
@@ -94,6 +97,8 @@ class GroupByKeyTranslator<K, InputT, OutputT>
 
     final MessageStream<OpMessage<KV<K, OutputT>>> outputStream =
         doTranslateGBK(
+            input,
+            output,
             inputStream,
             needRepartition(node, ctx),
             reduceFn,
@@ -104,7 +109,7 @@ class GroupByKeyTranslator<K, InputT, OutputT>
             outputTag,
             input.isBounded());
 
-    ctx.registerMessageStream(output, outputStream);
+    ctx.registerMessageStream(output, outputStream, false);
   }
 
   @Override
@@ -168,6 +173,8 @@ class GroupByKeyTranslator<K, InputT, OutputT>
     final PCollection.IsBounded isBounded = SamzaPipelineTranslatorUtils.isBounded(input);
 
     return doTranslateGBK(
+        null,
+        null,
         inputStream,
         needRepartition,
         reduceFn,
@@ -180,6 +187,8 @@ class GroupByKeyTranslator<K, InputT, OutputT>
   }
 
   private static <K, InputT, OutputT> MessageStream<OpMessage<KV<K, OutputT>>> doTranslateGBK(
+      PValue pValueInput,
+      PValue pValueOutput,
       MessageStream<OpMessage<KV<K, InputT>>> inputStream,
       boolean needRepartition,
       SystemReduceFn<K, InputT, ?, OutputT, BoundedWindow> reduceFn,
@@ -196,7 +205,7 @@ class GroupByKeyTranslator<K, InputT, OutputT>
     if (!needRepartition) {
       partitionedInputStream = filteredInputStream;
     } else {
-      partitionedInputStream =
+      MessageStream<org.apache.samza.operators.KV<K, WindowedValue<KV<K, InputT>>>> intermediate =
           filteredInputStream
               .partitionBy(
                   msg -> msg.getElement().getValue().getKey(),
@@ -204,9 +213,13 @@ class GroupByKeyTranslator<K, InputT, OutputT>
                   KVSerde.of(
                       SamzaCoders.toSerde(kvInputCoder.getKeyCoder()),
                       SamzaCoders.toSerde(elementCoder)),
-                  "gbk-" + escape(ctx.getTransformId()))
-              .map(kv -> OpMessage.ofElement(kv.getValue()));
+                  "gbk-" + escape(ctx.getTransformId()));
+      partitionedInputStream = intermediate.map(kv -> OpMessage.ofElement(kv.getValue()));
     }
+
+    partitionedInputStream.flatMapAsync(OpAdapter.adapt(
+        new SamzaInputMetricOp<>(pValueInput.getName(), ctx.getTransformFullName(), ctx.getSamzaOpMetricRegistry()),
+        ctx));
 
     final Coder<KeyedWorkItem<K, InputT>> keyedWorkItemCoder =
         KeyedWorkItemCoder.of(
@@ -229,6 +242,11 @@ class GroupByKeyTranslator<K, InputT, OutputT>
                         ctx.getTransformId(),
                         isBounded),
                     ctx));
+
+    outputStream.flatMapAsync(OpAdapter.adapt(
+        new SamzaOutputMetricOp<>(pValueOutput.getName(), ctx.getTransformFullName(), ctx.getSamzaOpMetricRegistry()),
+        ctx));
+
     return outputStream;
   }
 

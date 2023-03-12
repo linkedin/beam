@@ -20,6 +20,7 @@ package org.apache.beam.runners.samza.translation;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.beam.runners.samza.runtime.KeyedTimerData;
 import org.apache.beam.runners.samza.runtime.Op;
@@ -27,16 +28,24 @@ import org.apache.beam.runners.samza.runtime.OpEmitter;
 import org.apache.beam.runners.samza.util.SamzaOpUtils;
 import org.apache.samza.config.Config;
 import org.apache.samza.context.Context;
+import org.apache.samza.context.TaskContext;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.operators.Scheduler;
 
+/**
+ * MetricOp for default throughput, latency & watermark progress metric per transform for Beam Samza Runner
+ * @param <T> type of the message
+ */
 public abstract class SamzaMetricOp<T> implements Op<T, T, Void> {
+  public static final String ENABLE_TASK_METRICS = "runner.samza.transform.enable.task.metrics";
+
   protected final String transformFullName;
   protected final SamzaOpMetricRegistry samzaOpMetricRegistry;
   private MetricsRegistry metricsRegistry;
   protected List<String> transformInputs;
   protected List<String> transformOutputs;
   protected final String pValue;
+  protected TaskContext taskContext; // only for testing, remove this
 
   public SamzaMetricOp(
       String pValue, String transformFullName, SamzaOpMetricRegistry samzaOpMetricRegistry) {
@@ -53,18 +62,22 @@ public abstract class SamzaMetricOp<T> implements Op<T, T, Void> {
       Scheduler<KeyedTimerData<Void>> timerRegistry,
       OpEmitter<T> emitter) {
     Map.Entry<String, String> transformInputOutput =
-        SamzaOpUtils.getTransformToIOMap(config).get(transformFullName);
-    transformInputs =
-        Arrays.stream(transformInputOutput.getKey().split(","))
-            .filter(item -> !item.isEmpty())
-            .collect(Collectors.toList());
-    transformOutputs =
-        Arrays.stream(transformInputOutput.getValue().split(","))
-            .filter(item -> !item.isEmpty())
-            .collect(Collectors.toList());
-    // TODO: read config to switch to per task metrics on demand
-    this.metricsRegistry = context.getContainerContext().getContainerMetricsRegistry();
+        SamzaOpUtils.deserializeTransformIOMap(config).get(transformFullName);
+    transformInputs = ioFunc(transformInputOutput.getKey()).get();
+    transformOutputs = ioFunc(transformInputOutput.getValue()).get();
     // init the metric
+    if (config.getBoolean(ENABLE_TASK_METRICS, false)) {
+      this.metricsRegistry = context.getTaskContext().getTaskMetricsRegistry();
+    } else {
+      this.metricsRegistry = context.getContainerContext().getContainerMetricsRegistry();
+    }
     samzaOpMetricRegistry.getSamzaOpMetrics().register(transformFullName, metricsRegistry);
+    this.taskContext = context.getTaskContext();
+  }
+
+  private static Supplier<List<String>> ioFunc(String ioList) {
+    return () -> Arrays.stream(ioList.split(SamzaOpUtils.TRANSFORM_IO_MAP_DELIMITER))
+        .filter(item -> !item.isEmpty())
+        .collect(Collectors.toList());
   }
 }
