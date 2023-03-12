@@ -26,6 +26,7 @@ import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.metrics.Timer;
 
 // Todo check per container vs per task wiring of this
+// Can this be static
 public class SamzaOpMetrics implements Serializable {
   private static final String GROUP = SamzaOpMetrics.class.getSimpleName();
 

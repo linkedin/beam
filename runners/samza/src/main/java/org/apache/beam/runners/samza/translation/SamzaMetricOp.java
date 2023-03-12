@@ -27,6 +27,7 @@ import org.apache.beam.runners.samza.runtime.OpEmitter;
 import org.apache.beam.runners.samza.util.SamzaOpUtils;
 import org.apache.samza.config.Config;
 import org.apache.samza.context.Context;
+import org.apache.samza.context.TaskContext;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.operators.Scheduler;
 
@@ -37,6 +38,8 @@ public abstract class SamzaMetricOp<T> implements Op<T, T, Void> {
   protected List<String> transformInputs;
   protected List<String> transformOutputs;
   protected final String pValue;
+
+  protected TaskContext taskContext;
 
   public SamzaMetricOp(
       String pValue, String transformFullName, SamzaOpMetricRegistry samzaOpMetricRegistry) {
@@ -66,5 +69,6 @@ public abstract class SamzaMetricOp<T> implements Op<T, T, Void> {
     this.metricsRegistry = context.getContainerContext().getContainerMetricsRegistry();
     // init the metric
     samzaOpMetricRegistry.getSamzaOpMetrics().register(transformFullName, metricsRegistry);
+    this.taskContext = context.getTaskContext();
   }
 }

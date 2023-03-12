@@ -44,6 +44,10 @@ public class SamzaInputMetricOp<T> extends SamzaMetricOp<T> {
   @Override
   public void processElement(WindowedValue<T> inputElement, OpEmitter<T> emitter) {
     // update counters for timestamps
+    if (transformFullName.equals("Combine.perKey(Count)")) {
+      LOG.warn("In Combine.perKey processing element for: {}", pValue);
+    }
+
     long currTime =
         System
             .nanoTime(); // TODO: check if nano time overflows, switch to milliseconds or use BigInt
@@ -63,19 +67,52 @@ public class SamzaInputMetricOp<T> extends SamzaMetricOp<T> {
 
   @Override
   public void processWatermark(Instant watermark, OpEmitter<T> emitter) {
-    long avg =
-        overflowNotifier
-            ? Math.floorDiv(minTimestamp + maxTimestamp, 2)
-            : Math.floorDiv(sumOfTimestamps, count);
-    // Update MetricOp Registry with counters
-    samzaOpMetricRegistry.updateAvgStartTimeMap(
-        transformFullName, pValue, watermark.getMillis(), avg);
-    // reset all counters
-    count = 0;
-    sumOfTimestamps = 0L;
-    this.maxTimestamp = Long.MIN_VALUE;
-    this.minTimestamp = Long.MAX_VALUE;
-    overflowNotifier = false;
+    if (transformFullName.equals("Combine.perKey(Count)")) {
+      LOG.warn("In Combine.perKey processing element for: {}", pValue);
+    }
+    System.out.println(
+        String.format(
+            "[INTPUT] Processing watermark: %s for: %s for task: %s",
+            watermark.getMillis(),
+            transformFullName,
+            taskContext.getTaskModel().getTaskName().getTaskName()));
+
+    //    if (transformFullName.equals("Combine.perKey(Count)")) {
+    //      LOG.warn("In Combine.perKey processing watermark: {} for: {}", watermark, pValue);
+    //    }
+
+    try {
+      long avg =
+          overflowNotifier
+              ? Math.floorDiv(minTimestamp + maxTimestamp, 2)
+              : Math.floorDiv(sumOfTimestamps, count);
+      // Update MetricOp Registry with counters
+      samzaOpMetricRegistry.updateAvgStartTimeMap(
+          transformFullName, pValue, watermark.getMillis(), avg);
+      // reset all counters
+      count = 0;
+      sumOfTimestamps = 0L;
+      this.maxTimestamp = Long.MIN_VALUE;
+      this.minTimestamp = Long.MAX_VALUE;
+      overflowNotifier = false;
+    } catch (ArithmeticException e) {
+      System.out.println("----");
+      System.out.println(
+          String.format(
+              "[Input] Arithmetic Exception count: %s sumOfTimestamps: %s minTimestamp: %s maxTimestamp: %s",
+              count,
+              sumOfTimestamps,
+              minTimestamp == Long.MAX_VALUE,
+              maxTimestamp == Long.MIN_VALUE));
+      System.out.println(
+          "[Input] Arithmetic Exception in: "
+              + transformFullName
+              + "for watermark: "
+              + watermark.getMillis()
+              + "for task: "
+              + taskContext.getTaskModel().getTaskName().getTaskName());
+    }
+
     // emit the metric
     // samzaOpMetricRegistry.emitLatencyMetric(transformFullName, watermark.getMillis());
     super.processWatermark(watermark, emitter);

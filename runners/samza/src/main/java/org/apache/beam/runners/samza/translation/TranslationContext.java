@@ -148,17 +148,23 @@ public class TranslationContext {
   }
 
   public <OutT> void registerMessageStream(PValue pvalue, MessageStream<OpMessage<OutT>> stream) {
+    registerMessageStream(pvalue, stream, true);
+  }
+
+  public <OutT> void registerMessageStream(
+      PValue pvalue, MessageStream<OpMessage<OutT>> stream, boolean attachMetricOp) {
     if (messsageStreams.containsKey(pvalue)) {
       throw new IllegalArgumentException("Stream already registered for pvalue: " + pvalue);
     }
 
-    // add another step if registered for Op Stream
-    stream.flatMapAsync(
-        OpAdapter.adapt(
-            new SamzaOutputMetricOp<>(
-                pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
-            this));
-
+    if (attachMetricOp) {
+      // add another step if registered for Op Stream
+      stream.flatMapAsync(
+          OpAdapter.adapt(
+              new SamzaOutputMetricOp<>(
+                  pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
+              this));
+    }
     messsageStreams.put(pvalue, stream);
   }
 
@@ -170,6 +176,11 @@ public class TranslationContext {
   }
 
   public <OutT> MessageStream<OpMessage<OutT>> getMessageStream(PValue pvalue) {
+    return getMessageStream(pvalue, true);
+  }
+
+  public <OutT> MessageStream<OpMessage<OutT>> getMessageStream(
+      PValue pvalue, boolean attachMetricOp) {
     @SuppressWarnings("unchecked")
     final MessageStream<OpMessage<OutT>> stream =
         (MessageStream<OpMessage<OutT>>) messsageStreams.get(pvalue);
@@ -177,13 +188,12 @@ public class TranslationContext {
       throw new IllegalArgumentException("No stream registered for pvalue: " + pvalue);
     }
 
-    // add another step if registered for Op Stream
-    stream.flatMapAsync(
-        OpAdapter.adapt(
-            new SamzaInputMetricOp<>(
-                pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
-            this));
-
+    if (attachMetricOp) {
+      // add another step if registered for Op Stream
+      stream.flatMapAsync(
+          OpAdapter.adapt(new SamzaInputMetricOp<>(pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
+              this));
+    }
     return stream;
   }
 
@@ -270,6 +280,10 @@ public class TranslationContext {
 
   public String getTransformId() {
     return idGenerator.getId(getTransformFullName());
+  }
+
+  public SamzaOpMetricRegistry getSamzaOpMetricRegistry() {
+    return samzaOpMetricRegistry;
   }
 
   public StoreIdGenerator getStoreIdGenerator() {
