@@ -216,7 +216,7 @@ class GreedyPCollectionFusers {
         // Inputs to a ParDo that uses State or Timers must be key-partitioned, and elements for
         // a key must execute serially. To avoid checking if the rest of the stage is
         // key-partitioned and preserves keys, these ParDos do not fuse into an existing stage.
-        return false;
+        return true;
       } else if (!pipeline.getSideInputs(parDo).isEmpty()) {
         // At execution time, a Runner is required to only provide inputs to a PTransform that, at
         // the time the PTransform processes them, the associated window is ready in all side inputs
@@ -241,20 +241,6 @@ class GreedyPCollectionFusers {
         // side inputs can be fused with other transforms in the same environment which are not
         // upstream of any of the side inputs.
         || (pipeline.getSideInputs(parDo).isEmpty()
-            // We purposefully break fusion here to provide runners the opportunity to insert a
-            // grouping operation to simplify implementing support for ParDo's that contain user
-            // state.
-            // We would not need to do this if we had the ability to mark upstream transforms as
-            // key preserving or if runners could execute ParDos containing user state in a
-            // distributed
-            // fashion for a single key.
-            && pipeline.getUserStates(parDo).isEmpty()
-            // We purposefully break fusion here to provide runners the opportunity to insert a
-            // grouping operation to simplify implementing support for ParDo's that contain timers.
-            // We would not need to do this if we had the ability to mark upstream transforms as
-            // key preserving or if runners could execute ParDos containing timers in a distributed
-            // fashion for a single key.
-            && pipeline.getTimers(parDo).isEmpty()
             && compatibleEnvironments(parDo, other, pipeline));
   }
 
