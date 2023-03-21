@@ -71,8 +71,8 @@ public abstract class SamzaMetricOp<T> implements Op<T, T, Void> {
     } else {
       this.metricsRegistry = context.getContainerContext().getContainerMetricsRegistry();
     }
-    samzaOpMetricRegistry.getSamzaOpMetrics().register(transformFullName, metricsRegistry);
     this.taskContext = context.getTaskContext();
+    samzaOpMetricRegistry.register(transformFullName, pValue, metricsRegistry);
   }
 
   private static Supplier<List<String>> ioFunc(String ioList) {
