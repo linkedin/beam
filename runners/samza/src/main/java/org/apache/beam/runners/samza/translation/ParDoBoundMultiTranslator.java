@@ -307,6 +307,9 @@ class ParDoBoundMultiTranslator<InT, OutT>
     WindowedValue.WindowedValueCoder<InT> windowedInputCoder =
         WindowUtils.instantiateWindowedCoder(inputId, pipeline.getComponents());
 
+    WindowedValue.WindowedValueCoder<InT> statefulWindowedInputCoder =
+        WindowUtils.instantiateWindowedCoder("stateless-udf-1/ParMultiDo(Anonymous).output", pipeline.getComponents());
+
     // TODO: support schema and side inputs for portable runner
     // Note: transform.getTransform() is an ExecutableStage, not ParDo, so we need to extract
     // these info from its components.
@@ -317,7 +320,7 @@ class ParDoBoundMultiTranslator<InT, OutT>
     final Coder<?> keyCoder =
         StateUtils.isStateful(stagePayload)
             ? ((KvCoder)
-                    ((WindowedValue.FullWindowedValueCoder) windowedInputCoder).getValueCoder())
+                    ((WindowedValue.FullWindowedValueCoder) statefulWindowedInputCoder).getValueCoder())
                 .getKeyCoder()
             : null;
 
