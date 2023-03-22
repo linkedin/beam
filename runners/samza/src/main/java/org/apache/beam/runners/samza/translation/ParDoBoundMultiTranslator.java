@@ -308,7 +308,7 @@ class ParDoBoundMultiTranslator<InT, OutT>
         WindowUtils.instantiateWindowedCoder(inputId, pipeline.getComponents());
 
     WindowedValue.WindowedValueCoder<InT> statefulWindowedInputCoder =
-        WindowUtils.instantiateWindowedCoder("stateless-udf-1/ParMultiDo(Anonymous).output", pipeline.getComponents());
+        WindowUtils.instantiateWindowedCoder("Read From Kafka/Remove Kafka Metadata/ParMultiDo(Anonymous).output", pipeline.getComponents());
 
     // TODO: support schema and side inputs for portable runner
     // Note: transform.getTransform() is an ExecutableStage, not ParDo, so we need to extract
