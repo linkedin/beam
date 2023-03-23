@@ -78,6 +78,8 @@ import org.slf4j.LoggerFactory;
   "nullness"
 }) // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
 public class TranslationContext {
+  private static final String ENABLE_PER_TRANSFORM_METRICS =
+      "runner.samza.transform.enable.metrics";
   private static final Logger LOG = LoggerFactory.getLogger(TranslationContext.class);
   private final StreamApplicationDescriptor appDescriptor;
   private final Map<PValue, MessageStream<?>> messsageStreams = new HashMap<>();
@@ -88,7 +90,6 @@ public class TranslationContext {
   private final SamzaPipelineOptions options;
   private final HashIdGenerator idGenerator = new HashIdGenerator();
   private final StoreIdGenerator storeIdGenerator;
-
   private final SamzaOpMetricRegistry samzaOpMetricRegistry;
   private AppliedPTransform<?, ?, ?> currentTransform;
 
@@ -152,12 +153,13 @@ public class TranslationContext {
   }
 
   public <OutT> void registerMessageStream(
-      PValue pvalue, MessageStream<OpMessage<OutT>> stream, boolean attachMetricOp) {
+      PValue pvalue, MessageStream<OpMessage<OutT>> stream, boolean attachMetricOpOverride) {
     if (messsageStreams.containsKey(pvalue)) {
       throw new IllegalArgumentException("Stream already registered for pvalue: " + pvalue);
     }
 
-    if (attachMetricOp) {
+    if (attachMetricOp(
+        new MapConfig(getPipelineOptions().getConfigOverride()), attachMetricOpOverride)) {
       // add another step if registered for Op Stream
       stream.flatMapAsync(
           OpAdapter.adapt(
@@ -180,7 +182,7 @@ public class TranslationContext {
   }
 
   public <OutT> MessageStream<OpMessage<OutT>> getMessageStream(
-      PValue pvalue, boolean attachMetricOp) {
+      PValue pvalue, boolean attachMetricOpOverride) {
     @SuppressWarnings("unchecked")
     final MessageStream<OpMessage<OutT>> stream =
         (MessageStream<OpMessage<OutT>>) messsageStreams.get(pvalue);
@@ -188,10 +190,13 @@ public class TranslationContext {
       throw new IllegalArgumentException("No stream registered for pvalue: " + pvalue);
     }
 
-    if (attachMetricOp) {
+    if (attachMetricOp(
+        new MapConfig(getPipelineOptions().getConfigOverride()), attachMetricOpOverride)) {
       // add another step if registered for Op Stream
       stream.flatMapAsync(
-          OpAdapter.adapt(new SamzaInputMetricOp<>(pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
+          OpAdapter.adapt(
+              new SamzaInputMetricOp<>(
+                  pvalue.getName(), getTransformFullName(), samzaOpMetricRegistry),
               this));
     }
     return stream;
@@ -315,5 +320,9 @@ public class TranslationContext {
     sendFn.accept(new WatermarkMessage(BoundedWindow.TIMESTAMP_MAX_VALUE.getMillis()));
     sendFn.accept(new EndOfStreamMessage(null));
     return dummyInput;
+  }
+
+  boolean attachMetricOp(MapConfig config, boolean override) {
+    return override && config.getBoolean(ENABLE_PER_TRANSFORM_METRICS, false);
   }
 }

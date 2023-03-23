@@ -19,6 +19,7 @@ package org.apache.beam.runners.samza.translation;
 
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.beam.runners.samza.SamzaPipelineOptions;
 import org.apache.beam.runners.samza.runtime.OpMessage;
+import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.samza.application.descriptors.StreamApplicationDescriptor;
@@ -70,12 +72,15 @@ public class TranslationContextTest {
   @Test
   public void testRegisterInputMessageStreams() {
     final PCollection output = mock(PCollection.class);
+    final AppliedPTransform pTransform = mock(AppliedPTransform.class);
+    when(pTransform.getFullName()).thenReturn("mock-ptransform");
     List<String> topics = Arrays.asList("stream1", "stream2");
     List inputDescriptors =
         topics.stream()
             .map(topicName -> createSamzaInputDescriptor(topicName, topicName))
             .collect(Collectors.toList());
 
+    translationContext.setCurrentTransform(pTransform);
     translationContext.registerInputMessageStreams(output, inputDescriptors);
 
     assertNotNull(translationContext.getMessageStream(output));

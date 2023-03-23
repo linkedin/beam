@@ -148,7 +148,7 @@ public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
 
     final String jsonGraph = PipelineJsonRenderer.toJsonString(pipeline);
     LOG.info("Beam pipeline JSON graph:\n{}", jsonGraph);
-;
+    ;
     final Map<PValue, String> idMap = PViewToIdMapper.buildIdMap(pipeline);
     final Set<String> nonUniqueStateIds = StateIdParser.scan(pipeline);
     final String transformIOMap =

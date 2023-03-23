@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.samza.translation;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,20 +28,28 @@ import org.apache.samza.metrics.Timer;
 
 // Todo check per container vs per task wiring of this
 // Can this be static
-public class SamzaOpMetrics implements Serializable {
-  private static final String GROUP = SamzaOpMetrics.class.getSimpleName();
+public class SamzaOpMetricHolder implements Serializable {
+  private static final String GROUP = SamzaOpMetricHolder.class.getSimpleName();
 
   private static final String METRIC_NAME_PATTERN = "%s-%s";
   private static final String TRANSFORM_LATENCY_METRIC = "handle-message-ns";
   private static final String TRANSFORM_WATERMARK_PROGRESS = "watermark-progress";
   private static final String TRANSFORM_IP_THROUGHPUT = "num-input-messages";
   private static final String TRANSFORM_OP_THROUGHPUT = "num-output-messages";
+
+  @SuppressFBWarnings("SE_BAD_FIELD")
   private final Map<String, Timer> transformLatency;
+
+  @SuppressFBWarnings("SE_BAD_FIELD")
   private final Map<String, Gauge<Long>> transformWatermarkProgress;
+
+  @SuppressFBWarnings("SE_BAD_FIELD")
   private final Map<String, Counter> transformInputThroughput;
+
+  @SuppressFBWarnings("SE_BAD_FIELD")
   private final Map<String, Counter> transformOutputThroughPut;
 
-  public SamzaOpMetrics() {
+  public SamzaOpMetricHolder() {
     this.transformLatency = new ConcurrentHashMap<>();
     this.transformOutputThroughPut = new ConcurrentHashMap<>();
     this.transformWatermarkProgress = new ConcurrentHashMap<>();
@@ -49,7 +58,6 @@ public class SamzaOpMetrics implements Serializable {
 
   public void register(String transformName, MetricsRegistry metricsRegistry) {
     // TODO: Check the length of metric name is not exceeding the ingraphs limit defined
-    // TODO: Tune the timer reservoir, by default it holds upto 5 mins of data in skip-lists
     transformLatency.putIfAbsent(
         transformName,
         metricsRegistry.newTimer(

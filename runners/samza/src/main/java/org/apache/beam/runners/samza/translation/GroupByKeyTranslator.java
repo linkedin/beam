@@ -86,8 +86,11 @@ class GroupByKeyTranslator<K, InputT, OutputT>
 
     final MessageStream<OpMessage<KV<K, InputT>>> inputStream = ctx.getMessageStream(input, false);
 
-    inputStream.flatMapAsync(OpAdapter.adapt(
-        new SamzaInputGBKMetricOp<>(input.getName(), ctx.getTransformFullName(), ctx.getSamzaOpMetricRegistry()), ctx));
+    inputStream.flatMapAsync(
+        OpAdapter.adapt(
+            new SamzaInputGBKMetricOp<>(
+                input.getName(), ctx.getTransformFullName(), ctx.getSamzaOpMetricRegistry()),
+            ctx));
 
     final KvCoder<K, InputT> kvInputCoder = (KvCoder<K, InputT>) input.getCoder();
     final Coder<WindowedValue<KV<K, InputT>>> elementCoder = SamzaCoders.of(input);
@@ -109,8 +112,11 @@ class GroupByKeyTranslator<K, InputT, OutputT>
 
     ctx.registerMessageStream(output, outputStream, false);
 
-    outputStream.flatMapAsync(OpAdapter.adapt(
-        new SamzaOutputGBKMetricOp<>(input.getName(), ctx.getTransformFullName(), ctx.getSamzaOpMetricRegistry()), ctx));
+    outputStream.flatMapAsync(
+        OpAdapter.adapt(
+            new SamzaOutputGBKMetricOp<>(
+                input.getName(), ctx.getTransformFullName(), ctx.getSamzaOpMetricRegistry()),
+            ctx));
   }
 
   @Override

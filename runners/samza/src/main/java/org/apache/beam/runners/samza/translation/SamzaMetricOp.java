@@ -33,7 +33,9 @@ import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.operators.Scheduler;
 
 /**
- * MetricOp for default throughput, latency & watermark progress metric per transform for Beam Samza Runner
+ * MetricOp for default throughput, latency & watermark progress metric per transform for Beam Samza
+ * Runner.
+ *
  * @param <T> type of the message
  */
 public abstract class SamzaMetricOp<T> implements Op<T, T, Void> {
@@ -76,8 +78,9 @@ public abstract class SamzaMetricOp<T> implements Op<T, T, Void> {
   }
 
   private static Supplier<List<String>> ioFunc(String ioList) {
-    return () -> Arrays.stream(ioList.split(SamzaOpUtils.TRANSFORM_IO_MAP_DELIMITER))
-        .filter(item -> !item.isEmpty())
-        .collect(Collectors.toList());
+    return () ->
+        Arrays.stream(ioList.split(SamzaOpUtils.TRANSFORM_IO_MAP_DELIMITER))
+            .filter(item -> !item.isEmpty())
+            .collect(Collectors.toList());
   }
 }

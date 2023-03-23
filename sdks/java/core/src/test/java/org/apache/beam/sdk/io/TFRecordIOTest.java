@@ -142,7 +142,6 @@ public class TFRecordIOTest {
             .setSizeBytes(1024)
             .build();
     Create.Values<ReadableFile> create = Create.of(new ReadableFile(metadata, Compression.AUTO));
-
     assertEquals(
         "TFRecordIO.ReadFiles/Read all via FileBasedSource/Read ranges/ParMultiDo(ReadFileRanges).output",
         readPipeline.apply(create).apply(TFRecordIO.readFiles()).getName());

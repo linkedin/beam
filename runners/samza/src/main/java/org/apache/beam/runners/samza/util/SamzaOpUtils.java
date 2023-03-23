@@ -17,7 +17,6 @@
  */
 package org.apache.beam.runners.samza.util;
 
-import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -37,7 +36,6 @@ import org.apache.samza.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 public class SamzaOpUtils {
   private static final Logger LOG = LoggerFactory.getLogger(SamzaOpUtils.class);
   public static final String TRANSFORM_IO_MAP_DELIMITER = ",";
@@ -48,17 +46,18 @@ public class SamzaOpUtils {
     try {
       ObjectMapper objectMapper = new ObjectMapper();
       objectMapper.registerModule(
-          new SimpleModule()
-              .addDeserializer(
-                  Map.Entry.class, new MapEntryDeserializer()));
+          new SimpleModule().addDeserializer(Map.Entry.class, new MapEntryDeserializer()));
       return objectMapper.readValue(config.get(SamzaRunner.BEAM_TRANSFORMS_WITH_IO), typeRef);
     } catch (JsonProcessingException e) {
       throw new RuntimeException(
-          String.format("Cannot deserialize %s from the configs", SamzaRunner.BEAM_TRANSFORMS_WITH_IO), e);
+          String.format(
+              "Cannot deserialize %s from the configs", SamzaRunner.BEAM_TRANSFORMS_WITH_IO),
+          e);
     }
   }
 
-  public static String serializeTransformIOMap(Map<String, Map.Entry<String, String>> pTransformToIOMap) {
+  public static String serializeTransformIOMap(
+      Map<String, Map.Entry<String, String>> pTransformToIOMap) {
     try {
       ObjectMapper objectMapper = new ObjectMapper();
       objectMapper.registerModule(
@@ -86,12 +85,10 @@ public class SamzaOpUtils {
     }
   }
 
-
   @SuppressWarnings({"rawtypes"})
   public static final class MapEntryDeserializer extends JsonDeserializer<Map.Entry> {
     @Override
-    public Map.Entry deserialize(JsonParser jp, DeserializationContext ctxt)
-        throws IOException {
+    public Map.Entry deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException {
       JsonNode node = jp.getCodec().readTree(jp);
       String key = node.get("left").textValue();
       String value = node.get("right").textValue();

@@ -18,33 +18,28 @@
 package org.apache.beam.runners.samza.translation;
 
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.beam.runners.samza.runtime.OpEmitter;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.joda.time.Instant;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SamzaOutputMetricOp<T> extends SamzaMetricOp<T> {
-  private static final Logger LOG = LoggerFactory.getLogger(SamzaOutputMetricOp.class);
-
-  private int count;
-  private BigInteger sumOfTimestamps;
+  private AtomicLong count;
+  private AtomicReference<BigInteger> sumOfTimestamps;
 
   public SamzaOutputMetricOp(
       String pValue, String transformFullName, SamzaOpMetricRegistry samzaOpMetricRegistry) {
     super(pValue, transformFullName, samzaOpMetricRegistry);
-    this.count = 0;
-    this.sumOfTimestamps = BigInteger.ZERO;
+    this.count = new AtomicLong(0L);
+    this.sumOfTimestamps = new AtomicReference<>(BigInteger.ZERO);
   }
 
   @Override
   public void processElement(WindowedValue<T> inputElement, OpEmitter<T> emitter) {
     // update counters for timestamps
-    if (transformFullName.equals("Combine.perKey(Count)")) {
-      LOG.warn("In Combine.perKey processing element for: {}", pValue);
-    }
-    count++;
-    sumOfTimestamps = sumOfTimestamps.add(BigInteger.valueOf(System.nanoTime()));
+    count.incrementAndGet();
+    sumOfTimestamps.updateAndGet(sum -> sum.add(BigInteger.valueOf(System.nanoTime())));
     samzaOpMetricRegistry.getSamzaOpMetrics().getTransformOutputThroughput(transformFullName).inc();
     emitter.emitElement(inputElement);
   }
@@ -52,30 +47,42 @@ public class SamzaOutputMetricOp<T> extends SamzaMetricOp<T> {
   @Override
   @SuppressWarnings({"CompareToZero"})
   public void processWatermark(Instant watermark, OpEmitter<T> emitter) {
-    if (transformFullName.equals("Combine.perKey(Count)")) {
-      LOG.warn("In Combine.perKey processing element for: {}", pValue);
-    }
     System.out.println(
-        String.format("Output [%s] Processing watermark: %s for task: %s", transformFullName, watermark.getMillis(),
+        String.format(
+            "Output [%s] Processing watermark: %s for task: %s",
+            transformFullName,
+            watermark.getMillis(),
             taskContext.getTaskModel().getTaskName().getTaskName()));
-    if (sumOfTimestamps.compareTo(BigInteger.ZERO) == 1) {
+    if (sumOfTimestamps.get().compareTo(BigInteger.ZERO) == 1) {
       // if BigInt.longValue is out of range for long then only the low-order 64 bits are retained
-      long avg = Math.floorDiv(sumOfTimestamps.longValue(), count);
+      long avg = Math.floorDiv(sumOfTimestamps.get().longValue(), count.get());
       // Update MetricOp Registry with counters
-      samzaOpMetricRegistry.updateAvgStartTimeMap(transformFullName, pValue, watermark.getMillis(), avg);
+      samzaOpMetricRegistry.updateArrivalTimeMap(
+          transformFullName, pValue, watermark.getMillis(), avg);
       // emit the metrics
-      samzaOpMetricRegistry.emitLatencyMetric(transformFullName, transformInputs, transformOutputs, watermark.getMillis(),
+      samzaOpMetricRegistry.emitLatencyMetric(
+          transformFullName,
+          transformInputs,
+          transformOutputs,
+          watermark.getMillis(),
           taskContext.getTaskModel().getTaskName().getTaskName());
     } else {
-      // Empty data case - you dont need to handle
+      // Empty data case - you don't need to handle
       System.out.println(
-          String.format("Output [%s] SumOfTimestamps: %s zero for watermark: %s for task: %s", transformFullName, sumOfTimestamps.longValue(), watermark.getMillis(),
+          String.format(
+              "Output [%s] SumOfTimestamps: %s zero for watermark: %s for task: %s",
+              transformFullName,
+              sumOfTimestamps.get().longValue(),
+              watermark.getMillis(),
               taskContext.getTaskModel().getTaskName().getTaskName()));
     }
-    samzaOpMetricRegistry.getSamzaOpMetrics().getTransformWatermarkProgress(transformFullName).set(watermark.getMillis());
+    samzaOpMetricRegistry
+        .getSamzaOpMetrics()
+        .getTransformWatermarkProgress(transformFullName)
+        .set(watermark.getMillis());
     // reset all counters
-    count = 0;
-    sumOfTimestamps =  BigInteger.ZERO;
+    this.count = new AtomicLong(0L);
+    this.sumOfTimestamps = new AtomicReference<>(BigInteger.ZERO);
     super.processWatermark(watermark, emitter);
   }
 }
