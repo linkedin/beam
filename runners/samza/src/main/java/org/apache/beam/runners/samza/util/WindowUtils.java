@@ -62,8 +62,6 @@ public class WindowUtils {
    */
   public static <T> WindowedValue.WindowedValueCoder<T> instantiateWindowedCoder(
       String collectionId, RunnerApi.Components components) {
-    System.out.println("The collection id is : " + collectionId);
-    System.out.println("The components are : " + components);
     PipelineNode.PCollectionNode collectionNode =
         PipelineNode.pCollection(collectionId, components.getPcollectionsOrThrow(collectionId));
     try {

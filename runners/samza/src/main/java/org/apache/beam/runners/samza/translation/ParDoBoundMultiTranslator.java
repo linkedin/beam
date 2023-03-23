@@ -309,10 +309,15 @@ class ParDoBoundMultiTranslator<InT, OutT>
     WindowedValue.WindowedValueCoder<InT> windowedInputCoder =
         WindowUtils.instantiateWindowedCoder(inputId, pipeline.getComponents());
 
+    RunnerApi.ExecutableStagePayload.UserStateId userStateId = stagePayload.getUserStatesList().get(0);
+    RunnerApi.PTransform st = stagePayload.getComponents().getTransformsMap().get(userStateId.getTransformId());
+    String cid = st.getInputsMap().entrySet().stream().map(e -> e.getValue()).findFirst().get();
+
+    System.out.println("The collection id is: " + cid);
+    System.out.println("The components to get collection: " + pipeline.getComponents());
+
     WindowedValue.WindowedValueCoder<InT> statefulWindowedInputCoder =
-        WindowUtils.instantiateWindowedCoder(
-            "Read From Kafka/Remove Kafka Metadata/ParMultiDo(Anonymous).output",
-            pipeline.getComponents());
+        WindowUtils.instantiateWindowedCoder(cid, pipeline.getComponents());
 
     // TODO: support schema and side inputs for portable runner
     // Note: transform.getTransform() is an ExecutableStage, not ParDo, so we need to extract
