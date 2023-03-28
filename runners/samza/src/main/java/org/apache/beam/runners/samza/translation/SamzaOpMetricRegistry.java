@@ -25,13 +25,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.samza.metrics.MetricsRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SamzaOpMetricRegistry implements Serializable {
+  private static final Logger LOG = LoggerFactory.getLogger(SamzaOpMetricRegistry.class);
+
   // transformName -> pValue/pCollection -> Map<watermarkId, avgArrivalTime>
   private ConcurrentHashMap<String, ConcurrentHashMap<String, ConcurrentHashMap<Long, Long>>>
       avgArrivalTimeMap;
   // transformName -> <windowId, avgArrivalTime>
-
   @SuppressFBWarnings("SE_BAD_FIELD")
   private ConcurrentHashMap<String, ConcurrentHashMap<BoundedWindow, Long>> avgArrivalTimeMapForGbk;
 
@@ -64,25 +67,35 @@ public class SamzaOpMetricRegistry implements Serializable {
   protected void updateArrivalTimeMap(
       String transformName, String pValue, long watermark, long avg) {
     avgArrivalTimeMap.get(transformName).get(pValue).put(watermark, avg);
+    // remove any stale entries which are lesser than the watermark
+    avgArrivalTimeMap
+        .get(transformName)
+        .get(pValue)
+        .entrySet()
+        .removeIf(entry -> entry.getKey() < watermark);
   }
 
   void emitLatencyMetric(
       String transformName, BoundedWindow w, Long avgArrivalEndTime, String taskName) {
     Long avgArrivalStartTime = avgArrivalTimeMapForGbk.get(transformName).getOrDefault(w, 0L);
     if (avgArrivalStartTime.compareTo(0L) > 0 && avgArrivalEndTime.compareTo(0L) > 0) {
-      System.out.println(
-          String.format(
-              "Success Emit Metric TransformName %s for: %s and window: %s for task: %s",
-              transformName, transformName, w, taskName));
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(
+            String.format(
+                "Success Emit Metric TransformName %s for: %s and window: %s for task: %s",
+                transformName, transformName, w, taskName));
+      }
       avgArrivalTimeMapForGbk.get(transformName).remove(w);
       samzaOpMetricHolder
           .getTransformLatencyMetric(transformName)
           .update(avgArrivalEndTime - avgArrivalStartTime);
     } else {
-      System.out.println(
-          String.format(
-              "Start Time: [%s] or End Time: [%s] found is 0/null for: %s and windowId: %s for task: %s",
-              avgArrivalStartTime, avgArrivalEndTime, transformName, w, taskName));
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(
+            String.format(
+                "Start Time: [%s] or End Time: [%s] found is 0/null for: %s and windowId: %s for task: %s",
+                avgArrivalStartTime, avgArrivalEndTime, transformName, w, taskName));
+      }
     }
   }
 
@@ -97,9 +110,14 @@ public class SamzaOpMetricRegistry implements Serializable {
         avgArrivalTimeMap.get(transformName);
 
     if (!transformInputs.isEmpty() && !transformOutputs.isEmpty()) { // skip the io operators
-      List<Long> inputPValueStartTimes =
+      List<ConcurrentHashMap<Long, Long>> tmp =
           transformInputs.stream()
               .map(avgStartMap::get)
+              .filter(x -> x != null)
+              .collect(Collectors.toList());
+
+      List<Long> inputPValueStartTimes =
+          tmp.stream()
               .map(startTimeMap -> startTimeMap.remove(watermark)) // replace get with remove
               .filter(x -> x != null)
               .collect(Collectors.toList());
@@ -114,17 +132,25 @@ public class SamzaOpMetricRegistry implements Serializable {
       if (!inputPValueStartTimes.isEmpty() && !outputPValueStartTimes.isEmpty()) {
         Long startTime = Collections.min(inputPValueStartTimes);
         Long endTime = Collections.max(outputPValueStartTimes);
-        System.out.println(
-            String.format(
-                "Success Emit Metric TransformName %s for: %s and watermark: %s for task: %s",
-                transformName, transformName, watermark, taskName));
+        if (LOG.isDebugEnabled()) {
+          LOG.debug(
+              String.format(
+                  "Success Emit Metric TransformName %s for: %s and watermark: %s for task: %s",
+                  transformName, transformName, watermark, taskName));
+        }
         Long avgLatency = endTime - startTime;
         samzaOpMetricHolder.getTransformLatencyMetric(transformName).update(avgLatency);
       } else {
-        System.out.println(
-            String.format(
-                "Start Time: [%s] or End Time: [%s] found is null for: %s and watermark: %s for task: %s",
-                inputPValueStartTimes, outputPValueStartTimes, transformName, watermark, taskName));
+        if (LOG.isDebugEnabled()) {
+          LOG.debug(
+              String.format(
+                  "Start Time: [%s] or End Time: [%s] found is null for: %s and watermark: %s for task: %s",
+                  inputPValueStartTimes,
+                  outputPValueStartTimes,
+                  transformName,
+                  watermark,
+                  taskName));
+        }
       }
     }
   }

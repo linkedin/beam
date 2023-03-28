@@ -23,8 +23,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.beam.runners.samza.runtime.OpEmitter;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SamzaOutputMetricOp<T> extends SamzaMetricOp<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(SamzaOutputMetricOp.class);
+
   private AtomicLong count;
   private AtomicReference<BigInteger> sumOfTimestamps;
 
@@ -47,13 +51,15 @@ public class SamzaOutputMetricOp<T> extends SamzaMetricOp<T> {
   @Override
   @SuppressWarnings({"CompareToZero"})
   public void processWatermark(Instant watermark, OpEmitter<T> emitter) {
-    System.out.println(
-        String.format(
-            "Output [%s] Processing watermark: %s for task: %s",
-            transformFullName,
-            watermark.getMillis(),
-            taskContext.getTaskModel().getTaskName().getTaskName()));
-    if (sumOfTimestamps.get().compareTo(BigInteger.ZERO) == 1) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(
+          String.format(
+              "Output [%s] Processing watermark: %s for task: %s",
+              transformFullName,
+              watermark.getMillis(),
+              taskContext.getTaskModel().getTaskName().getTaskName()));
+    }
+    if (sumOfTimestamps.get().compareTo(BigInteger.ZERO) > 0) {
       // if BigInt.longValue is out of range for long then only the low-order 64 bits are retained
       long avg = Math.floorDiv(sumOfTimestamps.get().longValue(), count.get());
       // Update MetricOp Registry with counters
@@ -68,13 +74,15 @@ public class SamzaOutputMetricOp<T> extends SamzaMetricOp<T> {
           taskContext.getTaskModel().getTaskName().getTaskName());
     } else {
       // Empty data case - you don't need to handle
-      System.out.println(
-          String.format(
-              "Output [%s] SumOfTimestamps: %s zero for watermark: %s for task: %s",
-              transformFullName,
-              sumOfTimestamps.get().longValue(),
-              watermark.getMillis(),
-              taskContext.getTaskModel().getTaskName().getTaskName()));
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(
+            String.format(
+                "Output [%s] SumOfTimestamps: %s zero for watermark: %s for task: %s",
+                transformFullName,
+                sumOfTimestamps.get().longValue(),
+                watermark.getMillis(),
+                taskContext.getTaskModel().getTaskName().getTaskName()));
+      }
     }
     samzaOpMetricRegistry
         .getSamzaOpMetrics()

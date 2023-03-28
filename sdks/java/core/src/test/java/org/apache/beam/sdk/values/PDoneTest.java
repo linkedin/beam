@@ -73,6 +73,7 @@ public class PDoneTest {
     p.begin().apply(new EmptyTransform());
 
     p.run();
+    throw new RuntimeException("stop");
   }
 
   // Cannot run on the service, unless we allocate a GCS temp file

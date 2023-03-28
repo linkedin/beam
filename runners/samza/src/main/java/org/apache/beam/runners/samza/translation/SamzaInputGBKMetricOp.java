@@ -26,8 +26,12 @@ import org.apache.beam.runners.samza.runtime.OpEmitter;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SamzaInputGBKMetricOp<T> extends SamzaMetricOp<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(SamzaInputGBKMetricOp.class);
+
   private Map<BoundedWindow, BigInteger> sumOfTimestampsPerWindowId;
   private Map<BoundedWindow, Long> sumOfCountPerWindowId;
 
@@ -64,12 +68,14 @@ public class SamzaInputGBKMetricOp<T> extends SamzaMetricOp<T> {
     List<BoundedWindow> toBeRemoved = new ArrayList<>();
     sumOfTimestampsPerWindowId.forEach(
         (windowId, sumOfTimestamps) -> {
-          System.out.println(
-              String.format(
-                  "Input [%s] Processing watermark: %s for task: %s",
-                  transformFullName,
-                  watermark.getMillis(),
-                  taskContext.getTaskModel().getTaskName().getTaskName()));
+          if (LOG.isDebugEnabled()) {
+            LOG.debug(
+                String.format(
+                    "Input [%s] Processing watermark: %s for task: %s",
+                    transformFullName,
+                    watermark.getMillis(),
+                    taskContext.getTaskModel().getTaskName().getTaskName()));
+          }
           // if the window is closed and there is some data
           if (watermark.isAfter(windowId.maxTimestamp())
               && sumOfTimestamps.compareTo(BigInteger.ZERO) > 0) {
@@ -83,15 +89,18 @@ public class SamzaInputGBKMetricOp<T> extends SamzaMetricOp<T> {
           // todo: cleanup
           else {
             // Empty data case - you don't need to handle
-            System.out.println(
-                String.format(
-                    "Input [%s] SumOfTimestamps: %s zero for watermark: %s for task: %s",
-                    transformFullName,
-                    sumOfTimestamps.longValue(),
-                    watermark.getMillis(),
-                    taskContext.getTaskModel().getTaskName().getTaskName()));
+            if (LOG.isDebugEnabled()) {
+              LOG.debug(
+                  String.format(
+                      "Input [%s] SumOfTimestamps: %s zero for watermark: %s for task: %s",
+                      transformFullName,
+                      sumOfTimestamps.longValue(),
+                      watermark.getMillis(),
+                      taskContext.getTaskModel().getTaskName().getTaskName()));
+            }
           }
         });
+    // todo: use in place removal
     toBeRemoved.forEach(
         window -> {
           sumOfTimestampsPerWindowId.remove(window);

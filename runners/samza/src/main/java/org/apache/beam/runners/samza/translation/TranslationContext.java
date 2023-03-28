@@ -78,8 +78,6 @@ import org.slf4j.LoggerFactory;
   "nullness"
 }) // TODO(https://issues.apache.org/jira/browse/BEAM-10402)
 public class TranslationContext {
-  private static final String ENABLE_PER_TRANSFORM_METRICS =
-      "runner.samza.transform.enable.metrics";
   private static final Logger LOG = LoggerFactory.getLogger(TranslationContext.class);
   private final StreamApplicationDescriptor appDescriptor;
   private final Map<PValue, MessageStream<?>> messsageStreams = new HashMap<>();
@@ -323,6 +321,6 @@ public class TranslationContext {
   }
 
   boolean attachMetricOp(MapConfig config, boolean override) {
-    return override && config.getBoolean(ENABLE_PER_TRANSFORM_METRICS, false);
+    return override;
   }
 }

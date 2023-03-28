@@ -26,8 +26,11 @@ import org.apache.beam.runners.samza.runtime.OpEmitter;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SamzaOutputGBKMetricOp<T> extends SamzaMetricOp<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(SamzaOutputGBKMetricOp.class);
   private Map<BoundedWindow, BigInteger> sumOfTimestampsPerWindowId;
   private Map<BoundedWindow, Long> sumOfCountPerWindowId;
 
@@ -61,12 +64,14 @@ public class SamzaOutputGBKMetricOp<T> extends SamzaMetricOp<T> {
     List<BoundedWindow> toBeRemoved = new ArrayList<>();
     sumOfTimestampsPerWindowId.forEach(
         (windowId, sumOfTimestamps) -> {
-          System.out.println(
-              String.format(
-                  "Output [%s] Processing watermark: %s for task: %s",
-                  transformFullName,
-                  watermark.getMillis(),
-                  taskContext.getTaskModel().getTaskName().getTaskName()));
+          if (LOG.isDebugEnabled()) {
+            LOG.debug(
+                String.format(
+                    "Output [%s] Processing watermark: %s for task: %s",
+                    transformFullName,
+                    watermark.getMillis(),
+                    taskContext.getTaskModel().getTaskName().getTaskName()));
+          }
           // cleanup Remove if sum of timestamps = 0 // no wateamark
           if (watermark.isAfter(windowId.maxTimestamp())
               && sumOfTimestamps.compareTo(BigInteger.ZERO) > 0) {
@@ -78,13 +83,15 @@ public class SamzaOutputGBKMetricOp<T> extends SamzaMetricOp<T> {
                 taskContext.getTaskModel().getTaskName().getTaskName());
           } else {
             // Empty data case - you don't need to handle
-            System.out.println(
-                String.format(
-                    "Output [%s] SumOfTimestamps: %s [zero or window not closed] for watermark: %s for task: %s",
-                    transformFullName,
-                    sumOfTimestamps.longValue(),
-                    watermark.getMillis(),
-                    taskContext.getTaskModel().getTaskName().getTaskName()));
+            if (LOG.isDebugEnabled()) {
+              LOG.debug(
+                  String.format(
+                      "Output [%s] SumOfTimestamps: %s [zero or window not closed] for watermark: %s for task: %s",
+                      transformFullName,
+                      sumOfTimestamps.longValue(),
+                      watermark.getMillis(),
+                      taskContext.getTaskModel().getTaskName().getTaskName()));
+            }
           }
         });
 

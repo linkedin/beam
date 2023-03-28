@@ -23,8 +23,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.beam.runners.samza.runtime.OpEmitter;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SamzaInputMetricOp<T> extends SamzaMetricOp<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(SamzaInputMetricOp.class);
+
   private AtomicLong count;
   private AtomicReference<BigInteger> sumOfTimestamps;
 
@@ -46,12 +50,14 @@ public class SamzaInputMetricOp<T> extends SamzaMetricOp<T> {
   @Override
   @SuppressWarnings({"CompareToZero"})
   public void processWatermark(Instant watermark, OpEmitter<T> emitter) {
-    System.out.println(
-        String.format(
-            "Input [%s] Processing watermark: %s for task: %s",
-            transformFullName,
-            watermark.getMillis(),
-            taskContext.getTaskModel().getTaskName().getTaskName()));
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(
+          String.format(
+              "Input [%s] Processing watermark: %s for task: %s",
+              transformFullName,
+              watermark.getMillis(),
+              taskContext.getTaskModel().getTaskName().getTaskName()));
+    }
     // if there is no data then counters will be zero and only watermark will progress
     if (sumOfTimestamps.get().compareTo(BigInteger.ZERO) > 0) {
       // if BigInt.longValue is out of range for long then only the low-order 64 bits are retained
@@ -60,13 +66,15 @@ public class SamzaInputMetricOp<T> extends SamzaMetricOp<T> {
           transformFullName, pValue, watermark.getMillis(), avg);
     } else {
       // Empty data case - you don't need to handle
-      System.out.println(
-          String.format(
-              "Input [%s] SumOfTimestamps: %s zero for watermark: %s for task: %s",
-              transformFullName,
-              sumOfTimestamps.get().longValue(),
-              watermark.getMillis(),
-              taskContext.getTaskModel().getTaskName().getTaskName()));
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(
+            String.format(
+                "Input [%s] SumOfTimestamps: %s zero for watermark: %s for task: %s",
+                transformFullName,
+                sumOfTimestamps.get().longValue(),
+                watermark.getMillis(),
+                taskContext.getTaskModel().getTaskName().getTaskName()));
+      }
     }
     // reset all counters
     this.count = new AtomicLong(0L);
