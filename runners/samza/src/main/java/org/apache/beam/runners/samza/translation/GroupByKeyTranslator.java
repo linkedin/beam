@@ -104,7 +104,7 @@ class GroupByKeyTranslator<K, InputT, OutputT>
             outputTag,
             input.isBounded());
 
-    ctx.registerMessageStream(output, outputStream);
+    ctx.registerMessageStream(output, outputStream, false);
   }
 
   @Override
