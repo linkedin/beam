@@ -406,3 +406,18 @@ createPipelineOptionsTableTask('Python')
 // Update the pipeline options documentation before running the tests
 test.dependsOn(generatePipelineOptionsTableJava)
 test.dependsOn(generatePipelineOptionsTablePython)
+
+repositories {
+  maven {
+    name 'ext-libraries'
+    url 'https://linkedin.jfrog.io/artifactory/flink-li-custom/'
+  }
+}
+
+dependencies {
+  implementation "org.apache.flink:flink-runtime:$flink_version"
+  implementation "org.apache.flink:flink-optimizer:$flink_version"
+  implementation "org.apache.flink:flink-metrics-core:$flink_version"
+  testImplementation "org.apache.flink:flink-runtime:$flink_version:tests"
+  testImplementation "org.apache.flink:flink-rpc-akka:$flink_version"
+}
