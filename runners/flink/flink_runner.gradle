@@ -148,10 +148,8 @@ dependencies {
   implementation library.java.joda_time
   implementation library.java.args4j
 
-  /* Flink 1.15 shades all remaining scala dependencies and therefor does not depend on a specific version of Scala anymore.
-   * Flink 1.16 onwards, flink version is 11600.* and does not depend on a specific version of Scala anymore.
-   */
-  if (flink_version.compareTo("1.15") >= 0 || flink_version.compareTo("11600.3") >= 0) {
+  // Flink 1.15 shades all remaining scala dependencies and therefor does not depend on a specific version of Scala anymore
+  if (flink_version.compareTo("1.15") >= 0) {
     implementation "org.apache.flink:flink-clients:$flink_version"
     // Runtime dependencies are not included in Beam's generated pom.xml, so we must declare flink-clients in implementation
     // configuration (https://issues.apache.org/jira/browse/BEAM-11732).
@@ -185,7 +183,7 @@ dependencies {
   implementation "org.apache.flink:flink-metrics-core:$flink_version"
   implementation "org.apache.flink:flink-java:$flink_version"
 
-  if (flink_version.compareTo("1.14") >= 0 || flink_version.compareTo("11600.3") >= 0) {
+  if (flink_version.compareTo("1.14") >= 0) {
     implementation "org.apache.flink:flink-runtime:$flink_version"
     implementation "org.apache.flink:flink-optimizer:$flink_version"
     implementation "org.apache.flink:flink-metrics-core:$flink_version"
