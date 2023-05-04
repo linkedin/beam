@@ -26,7 +26,7 @@ project.ext {
   main_source_overrides = ["${basePath}/1.12/src/main/java", "${basePath}/1.13/src/main/java", "${basePath}/1.14/src/main/java", "${basePath}/1.15/src/main/java", './src/main/java']
   test_source_overrides = ["${basePath}/1.12/src/test/java", "${basePath}/1.13/src/test/java", "${basePath}/1.14/src/test/java", "${basePath}/1.15/src/test/java", './src/test/java']
   main_resources_overrides = []
-  test_resources_overrides = []
+  test_resources_overrides = ["${basePath}/1.12/src/test/resources", "${basePath}/1.13/src/test/resources", "${basePath}/1.14/src/test/resources", "${basePath}/1.15/src/test/resources", './src/test/resources']
   archives_base_name = 'beam-runners-flink-1.16'
 }
 
