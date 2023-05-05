@@ -98,6 +98,11 @@ Should be called before running the tests.
   <td>Default: <code>0</code></td>
 </tr>
 <tr>
+  <td><code>local_combine_max_buffered_records</code></td>
+  <td>For Flink batch jobs, the maximum number of records to buffer for in-memory sort in the local combine stage. This config only works for Flink 1.16 and above.</td>
+  <td>Default: <code>100000</code></td>
+</tr>
+<tr>
   <td><code>max_bundle_size</code></td>
   <td>The maximum number of elements in a bundle.</td>
   <td>Default: <code>1000</code></td>

@@ -1131,7 +1131,10 @@ class FlinkStreamingTransformTranslators {
             keyedWithWindowWorkItemStream.transform(
                 "localSortByKey",
                 keyedWithWindowWorkItemStream.getType(),
-                new InMemSortOperator<>(record -> encodeKey(record, keyAndWindowCoder)));
+                new InMemSortOperator<>(
+                    record -> encodeKey(record, keyAndWindowCoder),
+                    ((FlinkPipelineOptions) context.getPipelineOptions())
+                        .getLocalCombineMaxBufferedRecords()));
 
         // This is the local combine function that emit AccumT as the local combine result.
         Combine.CombineFn<InputT, AccumT, AccumT> partialCombineFn =
@@ -1900,7 +1903,6 @@ class FlinkStreamingTransformTranslators {
 
       @Override
       public AccumT addInput(AccumT mutableAccumulator, InputT input) {
-        System.err.println("Adding partial input " + input);
         return combineFn.addInput(mutableAccumulator, input);
       }
 
@@ -1951,15 +1953,16 @@ class FlinkStreamingTransformTranslators {
       implements OneInputStreamOperator<T, T> {
     private static final Logger LOG = LoggerFactory.getLogger(InMemSortOperator.class);
     // The minimum records to buffer before sorting and emitting the buffered records.
-    private static final int MIN_NUM_BUFFERED_RECORDS = 10000;
+    private final int maxNumBufferedRecords;
     final List<KV<byte[], StreamRecord<T>>> bufferedRecords;
     final SortKeyEncoder<T> sortKeyEncoder;
     transient long maxMemory;
 
-    private InMemSortOperator(SortKeyEncoder<T> sortKeyEncoder) {
+    private InMemSortOperator(SortKeyEncoder<T> sortKeyEncoder, int maxNumBufferedRecords) {
       this.bufferedRecords = new ArrayList<>();
       this.sortKeyEncoder = sortKeyEncoder;
       this.chainingStrategy = ChainingStrategy.ALWAYS;
+      this.maxNumBufferedRecords = maxNumBufferedRecords;
     }
 
     @Override
@@ -1971,9 +1974,7 @@ class FlinkStreamingTransformTranslators {
     @Override
     public void processElement(StreamRecord<T> record) throws Exception {
       bufferedRecords.add(KV.of(sortKeyEncoder.apply(record.getValue()), record));
-      if (bufferedRecords.size() >= MIN_NUM_BUFFERED_RECORDS
-          && bufferedRecords.size() % 100 == 0
-          && isFreeMemoryLow()) {
+      if (bufferedRecords.size() >= maxNumBufferedRecords) {
         sortAndOutput();
       }
     }
@@ -1993,18 +1994,8 @@ class FlinkStreamingTransformTranslators {
       for (KV<byte[], StreamRecord<T>> record : bufferedRecords) {
         output.collect(record.getValue());
       }
+      LOG.debug("Sorted and emitted {} records.", bufferedRecords.size());
       bufferedRecords.clear();
-    }
-
-    private boolean isFreeMemoryLow() {
-      // If the JVM free memory is lower than 10% of the max memory, sort and output the result.
-      // This is an approximate estimation of the memory usage. Ideally we should use Flink managed
-      // memory segments to have better control over memory consumption, but that may introduce
-      // additional SerDe overhead.
-      long freeMemory = Runtime.getRuntime().freeMemory();
-      double freeMemoryPct = ((double) freeMemory / maxMemory);
-      LOG.debug("Free Memory: {}/{} = {}", freeMemory, maxMemory, freeMemoryPct);
-      return freeMemoryPct < 0.1;
     }
   }
 
