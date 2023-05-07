@@ -17,10 +17,12 @@
  */
 package org.apache.beam.runners.samza.util;
 
+import com.google.common.base.Preconditions;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -62,6 +64,24 @@ public final class FutureUtils {
             c1.addAll(c2);
             return c1;
           });
+    }
+  }
+
+  public static <T> CompletionStage<Collection<T>> combineFutures(
+      CompletionStage<Collection<T>> future1, CompletionStage<Collection<T>> future2, ExecutorService executor) {
+    Preconditions.checkState(future1 != null || future2 != null);
+
+    if (future1 == null) {
+      return future2;
+    } else if (future2 == null) {
+      return future1;
+    } else {
+      return future1.thenCombineAsync(
+          future2,
+          (c1, c2) -> {
+            c1.addAll(c2);
+            return c1;
+          }, executor);
     }
   }
 }

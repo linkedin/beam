@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.samza.runtime;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,6 +27,8 @@ import java.util.ServiceLoader;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.beam.runners.samza.SamzaPipelineExceptionContext;
@@ -58,6 +61,10 @@ public class OpAdapter<InT, OutT, K>
         ScheduledFunction<KeyedTimerData<K>, OpMessage<OutT>>,
         Serializable {
   private static final Logger LOG = LoggerFactory.getLogger(OpAdapter.class);
+
+  private static final ExecutorService executor =
+      Executors.newSingleThreadExecutor(
+          new ThreadFactoryBuilder().setNameFormat("Samza Beam Adapter Thread %d").build());
 
   private final Op<InT, OutT, K> op;
   private final String transformFullName;
@@ -124,7 +131,13 @@ public class OpAdapter<InT, OutT, K>
     CompletionStage<Collection<OpMessage<OutT>>> resultFuture =
         CompletableFuture.completedFuture(emitter.collectOutput());
 
-    return FutureUtils.combineFutures(resultFuture, emitter.collectFuture());
+    /*
+     * Use a single threaded executor service to funnel messages between beam
+     * to samza to ensure single threaded access to samza high level components. Ideally
+     * we want this to be handled in samza instead of beam. Adding this here temporarily while we
+     * work on samza.
+     */
+    return FutureUtils.combineFutures(resultFuture, emitter.collectFuture(), executor);
   }
 
   @Override
