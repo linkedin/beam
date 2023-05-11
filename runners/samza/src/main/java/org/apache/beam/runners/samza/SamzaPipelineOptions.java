@@ -158,6 +158,13 @@ public interface SamzaPipelineOptions extends PipelineOptions {
 
   void setExecutorServiceForProcessElement(ExecutorService executorService);
 
+  @Description(
+      "The config for enabling fusion for stateful ParDos. Used only in portable mode for now.")
+  @Default.Boolean(false)
+  Boolean getEnableFusionOnStatefulParDos();
+
+  void setEnableFusionOnStatefulParDos(Boolean enableFusion);
+
   class ProcessElementExecutorServiceFactory implements DefaultValueFactory<ExecutorService> {
 
     @Override

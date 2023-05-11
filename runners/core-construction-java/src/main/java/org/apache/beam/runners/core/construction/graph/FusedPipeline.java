@@ -35,7 +35,7 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Sets;
 /** A {@link Pipeline} which has been separated into collections of executable components. */
 @AutoValue
 public abstract class FusedPipeline {
-  static FusedPipeline of(
+  public static FusedPipeline of(
       Components components,
       Set<ExecutableStage> environmentalStages,
       Set<PTransformNode> runnerStages,

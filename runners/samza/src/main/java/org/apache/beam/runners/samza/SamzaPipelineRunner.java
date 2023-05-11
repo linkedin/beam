@@ -28,6 +28,7 @@ import org.apache.beam.runners.core.construction.renderer.PipelineDotRenderer;
 import org.apache.beam.runners.fnexecution.provisioning.JobInfo;
 import org.apache.beam.runners.jobsubmission.PortablePipelineResult;
 import org.apache.beam.runners.jobsubmission.PortablePipelineRunner;
+import org.apache.beam.runners.samza.fusers.SamzaPipelineFuser;
 import org.apache.beam.runners.samza.translation.SamzaPortablePipelineTranslator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +60,7 @@ public class SamzaPipelineRunner implements PortablePipelineRunner {
         trimmedPipeline.getComponents().getTransformsMap().values().stream()
                 .anyMatch(proto -> ExecutableStage.URN.equals(proto.getSpec().getUrn()))
             ? trimmedPipeline
-            : GreedyPipelineFuser.fuse(trimmedPipeline).toPipeline();
+            : fusePipeline(options, trimmedPipeline);
 
     LOG.info("Portable pipeline to run:");
     LOG.info(PipelineDotRenderer.toDotString(fusedPipeline));
@@ -81,6 +82,12 @@ public class SamzaPipelineRunner implements PortablePipelineRunner {
     } catch (Exception e) {
       throw new RuntimeException("Failed to invoke samza job", e);
     }
+  }
+
+  private RunnerApi.Pipeline fusePipeline(SamzaPipelineOptions options, RunnerApi.Pipeline p) {
+    return options.getEnableFusionOnStatefulParDos()
+        ? SamzaPipelineFuser.fuse(p).toPipeline()
+        : GreedyPipelineFuser.fuse(p).toPipeline();
   }
 
   public SamzaPipelineRunner(SamzaPipelineOptions options) {

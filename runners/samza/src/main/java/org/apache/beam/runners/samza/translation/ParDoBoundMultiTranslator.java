@@ -314,12 +314,7 @@ class ParDoBoundMultiTranslator<InT, OutT>
 
     final RunnerApi.PCollection input = pipeline.getComponents().getPcollectionsOrThrow(inputId);
     final PCollection.IsBounded isBounded = SamzaPipelineTranslatorUtils.isBounded(input);
-    final Coder<?> keyCoder =
-        StateUtils.isStateful(stagePayload)
-            ? ((KvCoder)
-                    ((WindowedValue.FullWindowedValueCoder) windowedInputCoder).getValueCoder())
-                .getKeyCoder()
-            : null;
+    final Coder<?> keyCoder = getKeyCoderInPortable(ctx, stagePayload, windowedInputCoder);
 
     final DoFnOp<InT, OutT, RawUnionValue> op =
         new DoFnOp<>(
@@ -369,6 +364,30 @@ class ParDoBoundMultiTranslator<InT, OutT>
 
       ctx.registerMessageStream(indexToIdMap.get(outputIndex), outputStream);
     }
+  }
+
+  private static <InT> Coder<?> getKeyCoderInPortable(
+      PortableTranslationContext ctx,
+      RunnerApi.ExecutableStagePayload stagePayload,
+      WindowedValue.WindowedValueCoder<InT> windowedInputCoder) {
+    if (!StateUtils.isStateful(stagePayload)) {
+      return null;
+    }
+    if (!ctx.getPipelineOptions().getEnableFusionOnStatefulParDos()) {
+      return ((KvCoder) ((WindowedValue.FullWindowedValueCoder) windowedInputCoder).getValueCoder())
+          .getKeyCoder();
+    }
+
+    // Key coder is not in use.
+    // The key coder is always ByteStringCoder for user states in portable mode. see
+    // SamzaStateRequestHandlers.
+    if (stagePayload.getTimersCount() == 0) {
+      return null;
+    }
+
+    // TODO: support fusion the transforms that define user timers and with multiple key coders
+    return ((KvCoder) ((WindowedValue.FullWindowedValueCoder) windowedInputCoder).getValueCoder())
+        .getKeyCoder();
   }
 
   @Override
