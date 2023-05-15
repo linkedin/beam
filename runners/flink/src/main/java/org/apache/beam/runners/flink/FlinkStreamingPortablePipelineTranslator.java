@@ -418,7 +418,7 @@ public class FlinkStreamingPortablePipelineTranslator
     DataStream<WindowedValue<KeyedWorkItem<K, V>>> workItemStream =
         inputDataStream
             .flatMap(
-                FlinkStreamingTransformTranslators.ToKeyedWorkItem.of(context.getPipelineOptions()))
+                new FlinkStreamingTransformTranslators.ToKeyedWorkItem(context.getPipelineOptions()))
             .returns(workItemTypeInfo)
             .name("ToKeyedWorkItem");
 
