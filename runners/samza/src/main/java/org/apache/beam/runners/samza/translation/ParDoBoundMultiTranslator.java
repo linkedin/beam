@@ -34,6 +34,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload.SideInputId;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
 import org.apache.beam.runners.core.construction.RunnerPCollectionView;
+import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.runners.core.construction.graph.PipelineNode;
 import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
 import org.apache.beam.runners.samza.SamzaPipelineOptions;
@@ -315,11 +316,7 @@ class ParDoBoundMultiTranslator<InT, OutT>
     final RunnerApi.PCollection input = pipeline.getComponents().getPcollectionsOrThrow(inputId);
     final PCollection.IsBounded isBounded = SamzaPipelineTranslatorUtils.isBounded(input);
     final Coder<?> keyCoder =
-        StateUtils.isStateful(stagePayload)
-            ? ((KvCoder)
-                    ((WindowedValue.FullWindowedValueCoder) windowedInputCoder).getValueCoder())
-                .getKeyCoder()
-            : null;
+        getKeyCoderInPortable(ctx.getPipelineOptions(), stagePayload, windowedInputCoder);
 
     final DoFnOp<InT, OutT, RawUnionValue> op =
         new DoFnOp<>(
@@ -369,6 +366,31 @@ class ParDoBoundMultiTranslator<InT, OutT>
 
       ctx.registerMessageStream(indexToIdMap.get(outputIndex), outputStream);
     }
+  }
+
+  private static <InT> Coder<?> getKeyCoderInPortable(
+      SamzaPipelineOptions options,
+      RunnerApi.ExecutableStagePayload stagePayload,
+      WindowedValue.WindowedValueCoder<InT> windowedInputCoder) {
+    if (!StateUtils.isStateful(stagePayload)) {
+      return null;
+    }
+    // use default pipeline fuser which doesn't fuse the stateful ParDos
+    if (options.getPipelineFuser().equals(GreedyPipelineFuser.class.getCanonicalName())) {
+      return ((KvCoder) ((WindowedValue.FullWindowedValueCoder) windowedInputCoder).getValueCoder())
+          .getKeyCoder();
+    }
+
+    // The key coder here is required for instantiating SamzaTimerInternalsFactory.
+    // TODO: support fusion on the ParDos that define user timers
+    if (stagePayload.getTimersCount() > 0) {
+      return ((KvCoder) ((WindowedValue.FullWindowedValueCoder) windowedInputCoder).getValueCoder())
+          .getKeyCoder();
+    }
+
+    // The key coder is actually not in use for enabling fusion on the ParDos that define user
+    // states. see SamzaStateRequestHandlers
+    return null;
   }
 
   @Override

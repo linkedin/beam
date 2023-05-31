@@ -164,6 +164,13 @@ public interface SamzaPipelineOptions extends PipelineOptions {
 
   void setExecutorServiceForProcessElement(ExecutorService executorService);
 
+  @Description(
+      "The fusion optimizer that the Samza runner use to optimize its pipeline. The value of this property is the fully-qualified name of a Java class that follows the implementation of GreedyPipelineFuser. Used only in portable mode.")
+  @Default.String("org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser")
+  String getPipelineFuser();
+
+  void setPipelineFuser(String fuserClass);
+
   class ProcessElementExecutorServiceFactory implements DefaultValueFactory<ExecutorService> {
 
     @Override

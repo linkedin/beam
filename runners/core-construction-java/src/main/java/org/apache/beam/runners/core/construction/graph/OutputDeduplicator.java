@@ -49,7 +49,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 @SuppressWarnings({
   "nullness" // TODO(https://github.com/apache/beam/issues/20497)
 })
-class OutputDeduplicator {
+public class OutputDeduplicator {
 
   /**
    * Ensure that no {@link PCollection} output by any of the {@code stages} or {@code
@@ -59,7 +59,7 @@ class OutputDeduplicator {
    * rewritten to produce a partial {@link PCollection}, which are then flattened together via an
    * introduced Flatten node which produces the original output.
    */
-  static DeduplicationResult ensureSingleProducer(
+  public static DeduplicationResult ensureSingleProducer(
       QueryablePipeline pipeline,
       Collection<ExecutableStage> stages,
       Collection<PTransformNode> unfusedTransforms) {
@@ -145,7 +145,7 @@ class OutputDeduplicator {
   }
 
   @AutoValue
-  abstract static class DeduplicationResult {
+  public abstract static class DeduplicationResult {
     private static DeduplicationResult of(
         RunnerApi.Components components,
         Set<PTransformNode> introducedTransforms,
@@ -155,13 +155,13 @@ class OutputDeduplicator {
           components, introducedTransforms, stages, unfused);
     }
 
-    abstract RunnerApi.Components getDeduplicatedComponents();
+    public abstract RunnerApi.Components getDeduplicatedComponents();
 
-    abstract Set<PTransformNode> getIntroducedTransforms();
+    public abstract Set<PTransformNode> getIntroducedTransforms();
 
-    abstract Map<ExecutableStage, ExecutableStage> getDeduplicatedStages();
+    public abstract Map<ExecutableStage, ExecutableStage> getDeduplicatedStages();
 
-    abstract Map<String, PTransformNode> getDeduplicatedTransforms();
+    public abstract Map<String, PTransformNode> getDeduplicatedTransforms();
   }
 
   private static PTransform createFlattenOfPartials(

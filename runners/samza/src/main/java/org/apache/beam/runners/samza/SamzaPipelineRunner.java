@@ -17,10 +17,11 @@
  */
 package org.apache.beam.runners.samza;
 
+import java.lang.reflect.Method;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
-import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
+import org.apache.beam.runners.core.construction.graph.FusedPipeline;
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides;
 import org.apache.beam.runners.core.construction.graph.SplittableParDoExpander;
 import org.apache.beam.runners.core.construction.graph.TrivialNativeTransformExpander;
@@ -59,7 +60,7 @@ public class SamzaPipelineRunner implements PortablePipelineRunner {
         trimmedPipeline.getComponents().getTransformsMap().values().stream()
                 .anyMatch(proto -> ExecutableStage.URN.equals(proto.getSpec().getUrn()))
             ? trimmedPipeline
-            : GreedyPipelineFuser.fuse(trimmedPipeline).toPipeline();
+            : fusePipeline(options, trimmedPipeline);
 
     LOG.info("Portable pipeline to run:");
     LOG.info(PipelineDotRenderer.toDotString(fusedPipeline));
@@ -81,6 +82,26 @@ public class SamzaPipelineRunner implements PortablePipelineRunner {
     } catch (Exception e) {
       throw new RuntimeException("Failed to invoke samza job", e);
     }
+  }
+
+  // TODO: provide an interface(e.g. PipelineFuser) to define all protocols required as a pipeline
+  // fuser.
+  // Refactor the existing fuser implementations(e.g. GreedyPipelineFuser) to extend this interface,
+  // and use Java reflection to get the instance of PipelineFuser.
+  private RunnerApi.Pipeline fusePipeline(SamzaPipelineOptions options, RunnerApi.Pipeline p) {
+    FusedPipeline fusedPipeline;
+    try {
+      Class<?> fuserClass = Class.forName(options.getPipelineFuser());
+      Method fuseMethod = fuserClass.getMethod("fuse", RunnerApi.Pipeline.class);
+      fusedPipeline = ((FusedPipeline) fuseMethod.invoke("null", p));
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to fuse the pipeline", e);
+    }
+    if (fusedPipeline == null) {
+      throw new RuntimeException(
+          "Failed to fuse the pipeline. The fusedPipeline should not be null.");
+    }
+    return fusedPipeline.toPipeline();
   }
 
   public SamzaPipelineRunner(SamzaPipelineOptions options) {
