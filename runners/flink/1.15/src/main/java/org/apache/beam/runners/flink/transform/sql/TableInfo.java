@@ -18,7 +18,6 @@
 package org.apache.beam.runners.flink.transform.sql;
 
 import java.io.Serializable;
-import org.apache.beam.sdk.values.TupleTag;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.types.AbstractDataType;
@@ -29,12 +28,8 @@ import org.apache.flink.table.types.AbstractDataType;
  * <ul>
  *   <li>{@link InputTableInfo InputTableInfo} contains information for the main input table of a
  *       Sql Transform..
- *   <li>{@link AdditionalInputTableInfo InputTableInfo} contains information for an additional
- *       input table of a Sql Transform.
  *   <li>{@link OutputTableInfo InputTableInfo} contains information for the main output table of a
  *       Sql transform.
- *   <li>{@link AdditionalOutputTableInfo InputTableInfo} contains information for an additional
- *       output table of a Sql Transform.
  * </ul>
  */
 class TableInfo {
@@ -61,24 +56,6 @@ class TableInfo {
 
     public void setTypeInfo(TypeInformation<?> typeInfo) {
       this.typeInfo = typeInfo;
-    }
-  }
-
-  public static class AdditionalInputTableInfo<T> extends InputTableInfo<T> {
-    private final TupleTag<?> tag;
-
-    public AdditionalInputTableInfo(Class<T> clazz, TupleTag<?> tag, TypeInformation<?> typeInfo) {
-      super(clazz, typeInfo);
-      this.tag = tag;
-    }
-
-    static AdditionalInputTableInfo<?> of(TupleTag<?> tag) {
-      Class<?> clazz = tag.getTypeDescriptor().getRawType();
-      return new AdditionalInputTableInfo<>(clazz, tag, TypeInformation.of(clazz));
-    }
-
-    public TupleTag<?> getTag() {
-      return tag;
     }
   }
 
@@ -117,29 +94,6 @@ class TableInfo {
 
     public void setDataType(AbstractDataType<?> dataType) {
       this.dataType = dataType;
-    }
-  }
-
-  static class AdditionalOutputTableInfo<T> extends OutputTableInfo<T> {
-    private final TupleTag<?> tag;
-
-    public AdditionalOutputTableInfo(
-        Class<T> clazz,
-        TupleTag<?> tag,
-        TypeInformation<?> typeInfo,
-        AbstractDataType<?> dataType) {
-      super(clazz, typeInfo, dataType);
-      this.tag = tag;
-    }
-
-    public static AdditionalOutputTableInfo<?> of(TupleTag<?> tag) {
-      Class<?> clazz = tag.getTypeDescriptor().getRawType();
-      return new AdditionalOutputTableInfo<>(
-          clazz, tag, TypeInformation.of(clazz), DataTypes.of(clazz));
-    }
-
-    public TupleTag<?> getTag() {
-      return tag;
     }
   }
 }

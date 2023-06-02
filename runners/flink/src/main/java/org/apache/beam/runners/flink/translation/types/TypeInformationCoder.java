@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collections;
 import java.util.List;
+import javax.annotation.Nullable;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -37,12 +38,14 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 public class TypeInformationCoder<T> extends Coder<T> {
 
   private final TypeSerializer<T> serializer;
+  private final TypeInformation<T> typeInfo;
 
   public static <T> TypeInformationCoder<T> of(Class<T> clazz) {
     return new TypeInformationCoder<>(TypeInformation.of(clazz));
   }
 
   public TypeInformationCoder(TypeInformation<T> typeInfo) {
+    this.typeInfo = typeInfo;
     this.serializer = typeInfo.createSerializer(new ExecutionConfig());
   }
 
@@ -63,4 +66,19 @@ public class TypeInformationCoder<T> extends Coder<T> {
 
   @Override
   public void verifyDeterministic() {}
+
+  @Override
+  public boolean equals(@Nullable Object obj) {
+    if (!(obj instanceof TypeInformationCoder)) {
+      return false;
+    }
+
+    TypeInformationCoder<?> that = (TypeInformationCoder<?>) obj;
+    return typeInfo.equals(that.typeInfo);
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
+  }
 }

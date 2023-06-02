@@ -23,6 +23,10 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.beam.runners.flink.translation.types.TypeInformationCoder;
 import org.apache.beam.sdk.Pipeline;
@@ -38,8 +42,17 @@ import org.apache.flink.api.common.typeutils.base.TypeSerializerSingleton;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonFormat;
+import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.Schema;
+import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
+import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.catalog.UniqueConstraint;
+import org.apache.flink.table.factories.FactoryUtil;
+import org.apache.flink.table.functions.ScalarFunction;
 
-/** Unit tests for {@link FlinkSql}. */
+/** Unit tests for {@link SqlTransform}. */
 public class FlinkSqlTestUtils {
   public static final Order ORDER =
       new Order(1000L, "Mango", 10, 1.9, "Jean Doe", new Timestamp(1000L));
@@ -114,6 +127,63 @@ public class FlinkSqlTestUtils {
               }
             },
             new TypeInformationCoder<T>(typeInfo)));
+  }
+
+  public static CatalogTable getOrdersCatalogTable() {
+    // Create schema
+    ResolvedSchema resolvedSchema =
+        new ResolvedSchema(
+            Arrays.asList(
+                Column.physical("orderNumber", DataTypes.BIGINT()),
+                Column.physical("product", DataTypes.STRING()),
+                Column.physical("amount", DataTypes.INT()),
+                Column.physical("price", DataTypes.DOUBLE()),
+                Column.physical("buyer", DataTypes.STRING()),
+                Column.physical("orderTime", DataTypes.TIMESTAMP(3))),
+            Collections.emptyList(),
+            UniqueConstraint.primaryKey("UniqueProductName", Collections.singletonList("name")));
+
+    Map<String, String> connectorOptions = new HashMap<>();
+    connectorOptions.put(FactoryUtil.CONNECTOR.key(), "filesystem");
+    connectorOptions.put("path", getFilePath("Orders"));
+    connectorOptions.put("format", "csv");
+    connectorOptions.put("csv.allow-comments", "true");
+
+    final CatalogTable origin =
+        CatalogTable.of(
+            Schema.newBuilder().fromResolvedSchema(resolvedSchema).build(),
+            "Products Catalog Table",
+            Collections.emptyList(),
+            connectorOptions);
+
+    return new ResolvedCatalogTable(origin, resolvedSchema);
+  }
+
+  // -------------------- public classes ----------------------
+
+  public static class ToUpperCaseAndReplaceString extends ScalarFunction {
+    public String eval(String s) {
+      if (s == null) {
+        return null;
+      }
+
+      char[] chars = s.toUpperCase().toCharArray();
+      for (int i = 0; i < s.length(); i++) {
+        switch (chars[i]) {
+          case 'E':
+          case 'e':
+            chars[i] = '3';
+            break;
+          case 'O':
+          case 'o':
+            chars[i] = '0';
+            break;
+          default:
+            break;
+        }
+      }
+      return new String(chars);
+    }
   }
 
   // -------------------- public pojo classes ------------------------

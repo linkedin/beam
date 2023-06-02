@@ -17,23 +17,25 @@
  */
 package org.apache.beam.runners.flink.transform.sql;
 
-import static org.apache.beam.runners.flink.transform.sql.SqlTransformUtils.setCoderForOutput;
-
-import org.apache.beam.sdk.coders.CoderRegistry;
-import org.apache.beam.sdk.schemas.SchemaRegistry;
+import org.apache.beam.sdk.coders.TextualIntegerCoder;
+import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Table;
+import org.apache.flink.table.catalog.Catalog;
+import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.table.types.AbstractDataType;
 
 /**
  * A {@link PTransform} that supports Flink SQL as the DSL for transformation on the {@link
  * PCollection PCollections}. The {@link SingleOutputSqlTransform} differs from the {@link
- * MultiOutputSqlTransform} that it only supports one output {@link PCollection}.
+ * MultiOutputSqlTransform} that it only supports one output {@link PCollection}. Also, if users
+ * want to apply a SQL Transform to existing {@link PCollection PCollections}, either {@link
+ * SingleOutputSqlTransformWithInput} or {@link MultiOutputSqlTransformWithInput} is the way to go.
  *
  * <p>NOTE: <b>This {@link PTransform} only works with Flink Runner in batch mode.</b>
  *
@@ -43,36 +45,14 @@ import org.apache.flink.table.types.AbstractDataType;
  *
  * <h1>Specify the input tables</h1>
  *
- * <p>A {@link SingleOutputSqlTransform} has following three types of input tables.
+ * <p>A {@link SingleOutputSqlTransform} has following two types of input tables.
  *
  * <ul>
- *   <li><b>Main Input Table</b> - The main input table is converted from the {@link PCollection}
- *       this {@link SingleOutputSqlTransform} directly applied to. To refer the main input table,
- *       users need to specify a name of the main input table via {@link
- *       #withMainInputTable(String)}, so subsequent SQL queries can refer to the main input table
- *       by name. If the name of the main input table is not specified, the main input table will be
- *       treated as unused, and thus ignored by the Flink Runner. Hence, there might be zero or one
- *       main input table depending on whether user has specified the name of the main input table.
- *   <li><b>Additional Input Tables</b> - Users may define zero or more input tables in addition to
- *       the main input table via {@link #withAdditionalInputTable(TupleTag, PCollection)}. An
- *       additional input table is converted from the provided {@link PCollection} and the name of
- *       the table is the tag id.
+ *   <li><b>Tables from Flink {@link Catalog}</b> - Users can provide a Flink {@link Catalog} and
+ *       use the Tables defined there.
  *   <li><b>Tables defined by Flink DDL</b> - Users may also define zero or more input tables using
  *       Flink SQL DDL statements by calling {@link #withDDL(String)}.
  * </ul>
- *
- * <p>In order to convert a {@link PCollection} into a {@link Table Table}, the Flink Runner needs
- * to know the {@link TypeInformation} of the records in the {@link PCollection}. If the records are
- * of POJO type, Flink Runner can infer the {@link TypeInformation} automatically. Otherwise, Flink
- * will treat each record as a {@link org.apache.flink.table.types.logical.RawType RawType} which
- * means the converted table only has one column. To facilitate with the Table conversion for non
- * POJO record types, users need to specify the {@link TypeInformation} of an input {@link
- * PCollection} via {@link #withMainInputTable(String, TypeInformation)} or {@link
- * #withAdditionalInputTable(TupleTag, PCollection, TypeInformation)}.
- *
- * <p>
- *
- * <p>
  *
  * <h1>Specify processing logic</h1>
  *
@@ -104,11 +84,11 @@ import org.apache.flink.table.types.AbstractDataType;
  * <h1>Example</h1>
  *
  * <pre>
- *   SingleOutputSqlTransform<Integer, CountryAndSales> transform =
- *         FlinkSql.of(Integer.class, CountryAndSales.class)
+ *   SingleOutputSqlTransform&lt;Integer, CountryAndSales> transform =
+ *         FlinkSql.of(CountryAndSales.class)
  *             .withDDL(ORDERS_DDL)
  *             .withDDL(PRODUCTS_DDL)
- *             .withQuery("SalesByCountry",
+ *             .withQuery(
  *                 "SELECT country, SUM(sales) FROM (\n"
  *                     + "    SELECT Products.country, Orders.price * Orders.amount AS sales\n"
  *                     + "    FROM Orders, Products\n"
@@ -116,7 +96,6 @@ import org.apache.flink.table.types.AbstractDataType;
  *                     + "GROUP BY country");
  *
  *     pipeline
- *         .apply("DummyInput", Create.empty(TextualIntegerCoder.of()))
  *         .apply("MySqlTransform", transform)
  *         .apply("PrintToConsole", MapElements.into(TypeDescriptors.nulls()).via(record -> {
  *           System.out.println();
@@ -126,60 +105,20 @@ import org.apache.flink.table.types.AbstractDataType;
  *     pipeline.run(options);
  * </pre>
  *
- * @param <InputT> the type of the input records to this Sql transform.
- * @param <OutputT> the type of the output records of this Sql transform.
- * @see MultiOutputSqlTransform
+ * @param <T> the type of the output records of this Sql transform.
+ * @see MultiOutputSqlTransformWithInput
  */
-public class SingleOutputSqlTransform<InputT, OutputT>
-    extends PTransform<PCollection<InputT>, PCollection<OutputT>> {
-  private final FlinkSql<InputT, OutputT> sql;
+public class SingleOutputSqlTransform<T> extends PTransform<PBegin, PCollection<T>> {
 
-  SingleOutputSqlTransform(FlinkSql<InputT, OutputT> sql) {
-    this.sql = sql;
+  private final SingleOutputSqlTransformWithInput<Integer, T> transform;
+
+  SingleOutputSqlTransform(SingleOutputSqlTransformWithInput<Integer, T> transform) {
+    this.transform = transform;
   }
 
   @Override
-  public PCollection<OutputT> expand(PCollection<InputT> input) {
-    if (sql.getQueries().isEmpty()) {
-      throw new IllegalStateException(
-          "No query is found for the Sql transform. "
-              + "The SQLTransform must have at least one query.");
-    } else if (sql.getQueries().size() > 1 && !sql.hasSpecifiedMainOutputTableName()) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Unable to determine the main output "
-                  + "table because there are more than one queries specified. Please specify "
-                  + "the main output table using withMainOutputTable(). The valid main output "
-                  + "tables are %s",
-              sql.getQueries().keySet()));
-    }
-
-    String mainOutputTable =
-        sql.hasSpecifiedMainOutputTableName()
-            ? sql.getMainOutputTableName()
-            : sql.getQueries().keySet().iterator().next();
-    SchemaRegistry schemaRegistry = input.getPipeline().getSchemaRegistry();
-    CoderRegistry coderRegistry = input.getPipeline().getCoderRegistry();
-    TupleTag<OutputT> mainOutput = new TupleTag<>(mainOutputTable);
-
-    PCollection<OutputT> output =
-        input
-            .apply(
-                new MultiOutputSqlTransform<>(sql)
-                    .withMainOutputTable(
-                        mainOutputTable,
-                        sql.getMainOutputTableInfo().getTypeInfo(),
-                        sql.getMainOutputTableInfo().getDataType()))
-            .get(mainOutput);
-
-    setCoderForOutput(
-        schemaRegistry,
-        coderRegistry,
-        mainOutput,
-        output,
-        sql.getMainOutputTableInfo().getTypeInfo());
-
-    return output;
+  public PCollection<T> expand(PBegin input) {
+    return input.apply(Create.empty(TextualIntegerCoder.of())).apply(transform);
   }
 
   /**
@@ -189,8 +128,50 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * @param ddl the table definition
    * @return this {@link SingleOutputSqlTransform} itself.
    */
-  public SingleOutputSqlTransform<InputT, OutputT> withDDL(String ddl) {
-    sql.withDDL(ddl);
+  public SingleOutputSqlTransform<T> withDDL(String ddl) {
+    transform.withDDL(ddl);
+    return this;
+  }
+
+  /**
+   * Define add a new {@link Catalog} to be used by the SQL query.
+   *
+   * @param name the name of the catalog.
+   * @param catalog the catalog to use.
+   * @return this {@link SingleOutputSqlTransform} itself.
+   */
+  public SingleOutputSqlTransform<T> withCatalog(String name, SerializableCatalog catalog) {
+    transform.withCatalog(name, catalog);
+    return this;
+  }
+
+  /**
+   * Register a temporary user defined function for this SQL transform. The function will be
+   * registered as a <i>System Function</i> which means it will temporarily override other functions
+   * with the same name, if such function exists.
+   *
+   * @param name the name of the function.
+   * @param functionClass the class of the user defined function.
+   * @return this {@link SingleOutputSqlTransform} itself.
+   */
+  public SingleOutputSqlTransform<T> withFunction(
+      String name, Class<? extends UserDefinedFunction> functionClass) {
+    transform.withFunction(name, functionClass);
+    return this;
+  }
+
+  /**
+   * Register a temporary user defined function for this SQL transform. The function will be
+   * registered as a <i>System Function</i> which means it will temporarily override other functions
+   * with the same name, if such function exists.
+   *
+   * @param name the name of the function.
+   * @param functionInstance the user defined function instance.
+   * @return this {@link SingleOutputSqlTransform} itself.
+   */
+  public SingleOutputSqlTransform<T> withFunction(
+      String name, UserDefinedFunction functionInstance) {
+    transform.withFunction(name, functionInstance);
     return this;
   }
 
@@ -200,57 +181,33 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * statements comes after this query can refer to the result of this query with the specified
    * result table name.
    *
-   * <p>If only one queries is specified for this {@link SingleOutputSqlTransform}, the output table
-   * of that query will be used as the main output of this Sql transform by default. If more than
-   * one queries are specified, users will need to specify the main output via {@link
+   * <p>If only one queries is specified for this {@link SingleOutputSqlTransformWithInput}, the
+   * output table of that query will be used as the main output of this Sql transform by default. If
+   * more than one queries are specified, users will need to specify the main output via {@link
    * #withMainOutputTable(String)}.
    *
    * @param resultTableName the table name of the query result.
    * @param query the SQL DQL statement.
    * @return this {@link SingleOutputSqlTransform} itself.
    */
-  public SingleOutputSqlTransform<InputT, OutputT> withQuery(String resultTableName, String query) {
-    sql.withQuery(resultTableName, query);
+  public SingleOutputSqlTransform<T> withQuery(String resultTableName, String query) {
+    transform.withQuery(resultTableName, query);
     return this;
   }
 
   /**
-   * Specify the main input table name. The main output table will assume that <tt>InputT</tt> is a
-   * POJO class.
+   * Use DQL to express the query logic. The query should only contain one DQL, i.e. one top level
+   * {@code SELECT} statement. The query result will be registered as a temporary view with the
+   * default table name {@link SqlTransform#DEFAULT_MAIN_OUTPUT_TABLE_NAME}.
    *
-   * <p>See the {@link SingleOutputSqlTransform} class Java doc for more details about the main
-   * input table.
+   * <p>This method is equivalent to {@link #withQuery(String, String)
+   * withQuery(FlinkSql.DEFAULT_MAIN_OUTPUT_TABLE_NAME, query)}.
    *
-   * @param name the name of the main input table.
-   * @return this {@link SingleOutputSqlTransform}
-   * @see #withMainInputTable(String, TypeInformation)
-   * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#createTemporaryView(String,
-   *     DataStream)
+   * @param query the SQL DQL statement.
+   * @return this {@link SingleOutputSqlTransform} itself.
    */
-  public SingleOutputSqlTransform<InputT, OutputT> withMainInputTable(String name) {
-    Class<InputT> clazz = sql.getMainInputTableInfo().getClazz();
-    return withMainInputTable(name, TypeInformation.of(clazz));
-  }
-
-  /**
-   * Specify the main input table name and {@link TypeInformation}. The given {@link
-   * TypeInformation} will be used to convert the main input {@link PCollection} into a Flink {@link
-   * Table Table}.
-   *
-   * <p>See the {@link SingleOutputSqlTransform} class Java doc for more details about the main
-   * input table.
-   *
-   * @param name the name of the main input table.
-   * @param typeInfo the {@link TypeInformation} of the main input {@link PCollection}.
-   * @return this {@link SingleOutputSqlTransform}.
-   * @see #withMainInputTable(String)
-   * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#createTemporaryView(String,
-   *     DataStream)
-   */
-  public SingleOutputSqlTransform<InputT, OutputT> withMainInputTable(
-      String name, TypeInformation<InputT> typeInfo) {
-    sql.withMainInputTableName(name);
-    sql.withMainInputTableTypeInformation(typeInfo);
+  public SingleOutputSqlTransform<T> withQuery(String query) {
+    transform.withQuery(SqlTransform.DEFAULT_MAIN_OUTPUT_TABLE_NAME, query);
     return this;
   }
 
@@ -258,8 +215,8 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * Use the table with the given name as the main output table. The Flink runner will assume the
    * <tt>OutputT</tt> is a POJO class and the specified table schema matches it.
    *
-   * <p>See the {@link SingleOutputSqlTransform} class Java doc for more details about the main
-   * output table.
+   * <p>See the {@link SingleOutputSqlTransformWithInput} class Java doc for more details about the
+   * main output table.
    *
    * @param name the name of the table to be used as main output table.
    * @return this {@link SingleOutputSqlTransform}.
@@ -267,9 +224,9 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * @see #withMainOutputTable(String, TypeInformation, AbstractDataType)
    * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#toDataStream(Table)
    */
-  public SingleOutputSqlTransform<InputT, OutputT> withMainOutputTable(String name) {
-    Class<OutputT> clazz = sql.getMainOutputTableInfo().getClazz();
-    return withMainOutputTable(name, TypeInformation.of(clazz), DataTypes.of(clazz));
+  public SingleOutputSqlTransform<T> withMainOutputTable(String name) {
+    transform.withMainOutputTable(name);
+    return this;
   }
 
   /**
@@ -277,8 +234,8 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * <tt>OutputT</tt> is a POJO class and use the given {@link AbstractDataType DataType} to convert
    * the main output Table to a {@link PCollection PCollection&lt;OutputT&gt;}.
    *
-   * <p>See the {@link SingleOutputSqlTransform} class Java doc for more details about the main
-   * output table.
+   * <p>See the {@link SingleOutputSqlTransformWithInput} class Java doc for more details about the
+   * main output table.
    *
    * @param name the name of the table to be used as main output table.
    * @param dataType the {@link AbstractDataType} used to convert the main output table to a {@link
@@ -289,10 +246,10 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#toDataStream(Table,
    *     AbstractDataType)
    */
-  public SingleOutputSqlTransform<InputT, OutputT> withMainOutputTable(
+  public SingleOutputSqlTransform<T> withMainOutputTable(
       String name, AbstractDataType<?> dataType) {
-    Class<OutputT> clazz = sql.getMainOutputTableInfo().getClazz();
-    return withMainOutputTable(name, TypeInformation.of(clazz), dataType);
+    transform.withMainOutputTable(name, dataType);
+    return this;
   }
 
   /**
@@ -300,8 +257,8 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * {@link TypeInformation} and {@link AbstractDataType DataType} to convert the main output Table
    * to a {@link PCollection PCollection&lt;OutputT&gt;}.
    *
-   * <p>See the {@link SingleOutputSqlTransform} class Java doc for more details about the main
-   * output table.
+   * <p>See the {@link SingleOutputSqlTransformWithInput} class Java doc for more details about the
+   * main output table.
    *
    * @param name the name of the table to be used as main output table.
    * @param typeInfo the {@link TypeInformation} of the specified main output table.
@@ -313,42 +270,9 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#toDataStream(Table,
    *     AbstractDataType)
    */
-  public SingleOutputSqlTransform<InputT, OutputT> withMainOutputTable(
-      String name, TypeInformation<OutputT> typeInfo, AbstractDataType<?> dataType) {
-    sql.withMainOutputTableName(name);
-    sql.withMainOutputTableTypeInformation(typeInfo);
-    sql.withMainOutputTableDataType(dataType);
-    return this;
-  }
-
-  /**
-   * Add another {@link PCollection} as an additional input table to this Sql transform.
-   *
-   * @param tag the {@link TupleTag} of the additional input {@link Table}.
-   * @param pCollection The {@link PCollection} as the additional input table.
-   * @return this {@link SingleOutputSqlTransform}
-   * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#fromDataStream(DataStream)
-   */
-  public SingleOutputSqlTransform<InputT, OutputT> withAdditionalInputTable(
-      TupleTag<?> tag, PCollection<?> pCollection) {
-    Class<?> clazz = tag.getTypeDescriptor().getRawType();
-    return withAdditionalInputTable(tag, pCollection, TypeInformation.of(clazz));
-  }
-
-  /**
-   * Add another {@link PCollection} as an additional input table to this Sql transform.
-   *
-   * @param tag the {@link TupleTag} of the additional input {@link Table}.
-   * @param pCollection The {@link PCollection} as the additional input table.
-   * @param typeInfo the {@link TypeInformation} of the records in the given {@link PCollection}.
-   * @return this {@link SingleOutputSqlTransform}
-   * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#fromDataStream(DataStream)
-   */
-  public SingleOutputSqlTransform<InputT, OutputT> withAdditionalInputTable(
-      TupleTag<?> tag, PCollection<?> pCollection, TypeInformation<?> typeInfo) {
-    Class<?> clazz = tag.getTypeDescriptor().getRawType();
-    sql.withAdditionalInputTable(
-        tag, pCollection, new TableInfo.AdditionalInputTableInfo<>(clazz, tag, typeInfo));
+  public SingleOutputSqlTransform<T> withMainOutputTable(
+      String name, TypeInformation<T> typeInfo, AbstractDataType<?> dataType) {
+    transform.withMainOutputTable(name, typeInfo, dataType);
     return this;
   }
 
@@ -360,9 +284,8 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * @return A new {@link MultiOutputSqlTransform}
    * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#toDataStream(Table)
    */
-  public MultiOutputSqlTransform<InputT, OutputT> withAdditionalOutputTable(TupleTag<?> tag) {
-    Class<?> clazz = tag.getTypeDescriptor().getRawType();
-    return withAdditionalOutputTable(tag, DataTypes.of(clazz));
+  public MultiOutputSqlTransform<T> withAdditionalOutputTable(TupleTag<?> tag) {
+    return new MultiOutputSqlTransform<>(transform.withAdditionalOutputTable(tag));
   }
 
   /**
@@ -375,10 +298,9 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#toDataStream(Table,
    *     AbstractDataType)
    */
-  public MultiOutputSqlTransform<InputT, OutputT> withAdditionalOutputTable(
+  public MultiOutputSqlTransform<T> withAdditionalOutputTable(
       TupleTag<?> tag, AbstractDataType<?> dataType) {
-    Class<?> clazz = tag.getTypeDescriptor().getRawType();
-    return withAdditionalOutputTable(tag, TypeInformation.of(clazz), dataType);
+    return new MultiOutputSqlTransform<>(transform.withAdditionalOutputTable(tag, dataType));
   }
 
   /**
@@ -392,8 +314,9 @@ public class SingleOutputSqlTransform<InputT, OutputT>
    * @see org.apache.flink.table.api.bridge.java.StreamTableEnvironment#toDataStream(Table,
    *     AbstractDataType)
    */
-  public MultiOutputSqlTransform<InputT, OutputT> withAdditionalOutputTable(
+  public MultiOutputSqlTransform<T> withAdditionalOutputTable(
       TupleTag<?> tag, TypeInformation<?> typeInfo, AbstractDataType<?> dataType) {
-    return new MultiOutputSqlTransform<>(sql).withAdditionalOutputTable(tag, dataType, typeInfo);
+    return new MultiOutputSqlTransform<>(
+        transform.withAdditionalOutputTable(tag, typeInfo, dataType));
   }
 }
