@@ -226,18 +226,25 @@ public class PipelineOptionsFactory {
     private final boolean validation;
     private final boolean strictParsing;
     private final boolean isCli;
+    private final boolean usesRunnerPipelineOptionsFactory;
 
     // Do not allow direct instantiation
     private Builder() {
-      this(new String[0], false, true, false);
+      this(new String[0], false, true, false, true);
     }
 
-    private Builder(String[] args, boolean validation, boolean strictParsing, boolean isCli) {
+    private Builder(
+        String[] args,
+        boolean validation,
+        boolean strictParsing,
+        boolean isCli,
+        boolean usesRunnerPipelineOptionsFactory) {
       this.defaultAppName = findCallersClassName();
       this.args = args;
       this.validation = validation;
       this.strictParsing = strictParsing;
       this.isCli = isCli;
+      this.usesRunnerPipelineOptionsFactory = usesRunnerPipelineOptionsFactory;
     }
 
     /**
@@ -279,7 +286,7 @@ public class PipelineOptionsFactory {
      */
     public Builder fromArgs(String... args) {
       checkNotNull(args, "Arguments should not be null.");
-      return new Builder(args, validation, strictParsing, true);
+      return new Builder(args, validation, strictParsing, true, usesRunnerPipelineOptionsFactory);
     }
 
     /**
@@ -288,7 +295,7 @@ public class PipelineOptionsFactory {
      * PipelineOptions)} for more details about validation.
      */
     public Builder withValidation() {
-      return new Builder(args, true, strictParsing, isCli);
+      return new Builder(args, true, strictParsing, isCli, usesRunnerPipelineOptionsFactory);
     }
 
     /**
@@ -296,7 +303,11 @@ public class PipelineOptionsFactory {
      * arguments.
      */
     public Builder withoutStrictParsing() {
-      return new Builder(args, validation, false, isCli);
+      return new Builder(args, validation, false, isCli, usesRunnerPipelineOptionsFactory);
+    }
+
+    public Builder withoutRunnerPipelineOptionsFactory() {
+      return new Builder(args, validation, strictParsing, isCli, false);
     }
 
     /**
@@ -319,6 +330,14 @@ public class PipelineOptionsFactory {
      * @return An object that implements {@code <T>}.
      */
     public <T extends PipelineOptions> T as(Class<T> klass) {
+      // LinkedIn specific logic to create PipelineOptions from Runner
+      if (usesRunnerPipelineOptionsFactory) {
+        RunnerPipelineOptionsFactory<T> factory = RunnerPipelineOptionsFactory.getFactory();
+        if (factory != null) {
+          return factory.getPipelineOptions(args, klass);
+        }
+      }
+
       Map<String, Object> initialOptions = Maps.newHashMap();
 
       // Attempt to parse the arguments into the set of initial options to use

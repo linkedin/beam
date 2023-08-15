@@ -34,13 +34,9 @@ import org.apache.avro.specific.SpecificRecord;
 import org.apache.beam.sdk.util.EmptyOnDeserializationThreadLocal;
 import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
-import org.checkerframework.checker.nullness.qual.Nullable;
-
 
 /** A {@link CustomCoder} using Avro specific format. */
-@SuppressWarnings({
-    "nullness"
-})
+@SuppressWarnings({"nullness"})
 public class AvroSpecificCoder<T extends SpecificRecord> extends CustomCoder<T> {
 
   /**
@@ -73,6 +69,7 @@ public class AvroSpecificCoder<T extends SpecificRecord> extends CustomCoder<T> 
 
   @SuppressWarnings("unused")
   private final Class<T> type;
+
   private final SerializableSchemaSupplier schemaSupplier;
   private final TypeDescriptor<T> typeDescriptor;
 
