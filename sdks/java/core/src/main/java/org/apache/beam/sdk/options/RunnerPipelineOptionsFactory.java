@@ -23,16 +23,23 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterator
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public interface RunnerPipelineOptionsFactory<T extends PipelineOptions> {
-  T getPipelineOptions(String[] args, Class<T> clazz);
+/** A LinkedIn factory interface for runner-specific runtime to load {@link PipelineOptions}. */
+public interface RunnerPipelineOptionsFactory {
+  <T extends PipelineOptions> T getPipelineOptions(String[] args, Class<T> clazz);
 
-  interface Registar {
-    <T extends PipelineOptions> RunnerPipelineOptionsFactory<T> create();
+  /**
+   * Registrar of the {@link RunnerPipelineOptionsFactory}. Must be a single class in a runner's
+   * runtime.
+   */
+  interface Registrar {
+    RunnerPipelineOptionsFactory create();
   }
 
-  static @Initialized @Nullable <T extends PipelineOptions>
-      RunnerPipelineOptionsFactory<T> getFactory() {
-    final Iterator<Registar> factories = ServiceLoader.load(Registar.class).iterator();
+  /**
+   * Fing the {@link RunnerPipelineOptionsFactory} to load runner-specific {@link PipelineOptions}.
+   */
+  static @Initialized @Nullable RunnerPipelineOptionsFactory getFactory() {
+    final Iterator<Registrar> factories = ServiceLoader.load(Registrar.class).iterator();
     return factories.hasNext() ? Iterators.getOnlyElement(factories).create() : null;
   }
 }

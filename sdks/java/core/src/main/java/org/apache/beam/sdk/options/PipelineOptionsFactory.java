@@ -226,25 +226,23 @@ public class PipelineOptionsFactory {
     private final boolean validation;
     private final boolean strictParsing;
     private final boolean isCli;
-    private final boolean usesRunnerPipelineOptionsFactory;
+
+    private static final ThreadLocal<Boolean> USE_RUNNER_FACTORY =
+        ThreadLocal.withInitial(() -> Boolean.TRUE);
+    private static final RunnerPipelineOptionsFactory RUNNER_PIPELINE_OPTIONS_FACTORY =
+        RunnerPipelineOptionsFactory.getFactory();
 
     // Do not allow direct instantiation
     private Builder() {
-      this(new String[0], false, true, false, true);
+      this(new String[0], false, true, false);
     }
 
-    private Builder(
-        String[] args,
-        boolean validation,
-        boolean strictParsing,
-        boolean isCli,
-        boolean usesRunnerPipelineOptionsFactory) {
+    private Builder(String[] args, boolean validation, boolean strictParsing, boolean isCli) {
       this.defaultAppName = findCallersClassName();
       this.args = args;
       this.validation = validation;
       this.strictParsing = strictParsing;
       this.isCli = isCli;
-      this.usesRunnerPipelineOptionsFactory = usesRunnerPipelineOptionsFactory;
     }
 
     /**
@@ -286,7 +284,7 @@ public class PipelineOptionsFactory {
      */
     public Builder fromArgs(String... args) {
       checkNotNull(args, "Arguments should not be null.");
-      return new Builder(args, validation, strictParsing, true, usesRunnerPipelineOptionsFactory);
+      return new Builder(args, validation, strictParsing, true);
     }
 
     /**
@@ -295,7 +293,7 @@ public class PipelineOptionsFactory {
      * PipelineOptions)} for more details about validation.
      */
     public Builder withValidation() {
-      return new Builder(args, true, strictParsing, isCli, usesRunnerPipelineOptionsFactory);
+      return new Builder(args, true, strictParsing, isCli);
     }
 
     /**
@@ -303,11 +301,7 @@ public class PipelineOptionsFactory {
      * arguments.
      */
     public Builder withoutStrictParsing() {
-      return new Builder(args, validation, false, isCli, usesRunnerPipelineOptionsFactory);
-    }
-
-    public Builder withoutRunnerPipelineOptionsFactory() {
-      return new Builder(args, validation, strictParsing, isCli, false);
+      return new Builder(args, validation, false, isCli);
     }
 
     /**
@@ -331,11 +325,17 @@ public class PipelineOptionsFactory {
      */
     public <T extends PipelineOptions> T as(Class<T> klass) {
       // LinkedIn specific logic to create PipelineOptions from Runner
-      if (usesRunnerPipelineOptionsFactory) {
-        RunnerPipelineOptionsFactory<T> factory = RunnerPipelineOptionsFactory.getFactory();
-        if (factory != null) {
-          return factory.getPipelineOptions(args, klass);
+      if (USE_RUNNER_FACTORY.get() && RUNNER_PIPELINE_OPTIONS_FACTORY != null) {
+        // RunnerPipelineOptionsFactory should NOT be used recursively
+        USE_RUNNER_FACTORY.set(false);
+
+        T options;
+        try {
+          options = RUNNER_PIPELINE_OPTIONS_FACTORY.getPipelineOptions(args, klass);
+        } finally {
+          USE_RUNNER_FACTORY.set(true);
         }
+        return options;
       }
 
       Map<String, Object> initialOptions = Maps.newHashMap();

@@ -1827,7 +1827,8 @@ class BeamModulePlugin implements Plugin<Project> {
                     configuration: (configuration.shadowClosure ? 'shadow' : 'implementation'), scope: 'compile')
                 generateDependenciesFromConfiguration(configuration: 'provided', scope: 'provided')
 
-                if (!boms.isEmpty()) {
+                // LinkedIn: no boms in pom.xml so it can be used in MPs
+                if (!boms.isEmpty() && !(isLinkedin(project) && isSnapshot(project))) {
                   def dependencyManagementNode = root.appendNode('dependencyManagement')
                   def dependencyManagementDependencies = dependencyManagementNode.appendNode('dependencies')
 
