@@ -36,7 +36,7 @@ public interface RunnerPipelineOptionsFactory {
   }
 
   /**
-   * Fing the {@link RunnerPipelineOptionsFactory} to load runner-specific {@link PipelineOptions}.
+   * Find the {@link RunnerPipelineOptionsFactory} to load runner-specific {@link PipelineOptions}.
    */
   static @Initialized @Nullable RunnerPipelineOptionsFactory getFactory() {
     final Iterator<Registrar> factories = ServiceLoader.load(Registrar.class).iterator();
