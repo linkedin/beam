@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.coders;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -34,13 +35,9 @@ import org.apache.avro.specific.SpecificRecord;
 import org.apache.beam.sdk.util.EmptyOnDeserializationThreadLocal;
 import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
-import org.checkerframework.checker.nullness.qual.Nullable;
-
 
 /** A {@link CustomCoder} using Avro specific format. */
-@SuppressWarnings({
-    "nullness"
-})
+@SuppressWarnings({"nullness"})
 public class AvroSpecificCoder<T extends SpecificRecord> extends CustomCoder<T> {
 
   /**
@@ -73,6 +70,7 @@ public class AvroSpecificCoder<T extends SpecificRecord> extends CustomCoder<T> 
 
   @SuppressWarnings("unused")
   private final Class<T> type;
+
   private final SerializableSchemaSupplier schemaSupplier;
   private final TypeDescriptor<T> typeDescriptor;
 
@@ -103,6 +101,10 @@ public class AvroSpecificCoder<T extends SpecificRecord> extends CustomCoder<T> 
    * serialization and hence is able to encode the {@link Schema} object directly.
    */
   private static class SerializableSchemaSupplier implements Serializable, Supplier<Schema> {
+    // writeReplace makes this object serializable. This is a limitation of FindBugs as discussed
+    // here:
+    // http://stackoverflow.com/questions/26156523/is-writeobject-not-neccesary-using-the-serialization-proxy-pattern
+    @SuppressFBWarnings("SE_BAD_FIELD")
     private final Schema schema;
 
     private SerializableSchemaSupplier(Schema schema) {
