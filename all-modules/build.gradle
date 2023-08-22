@@ -16,8 +16,11 @@
  * limitations under the License.
  */
 
-// This module depends on all other Beam modules. Its primary purpose is to help scripts identify all Beam modules
-// via transitive dependencies instead of enumerating all modules individually.
+plugins { id 'org.apache.beam.module' }
+applyJavaNature(
+    automaticModuleName: 'org.apache.beam.all-modules',
+)
+
 dependencies {
     rootProject.subprojects.each { subproject ->
         if (subproject.path != project.path && subproject.subprojects.isEmpty()) {
