@@ -295,6 +295,14 @@ public interface FlinkPipelineOptions
           + "over configurations in FLINK_CONF_DIR.")
   String getFlinkConfDir();
 
+  void setLocalCombineMaxBufferedRecords(Integer localCombineMaxBufferedRecords);
+
+  @Description(
+      "For Flink batch jobs, the maximum number of records to buffer for in-memory sort in the local "
+          + "combine stage. This config only works for Flink 1.16 and above.")
+  @Default.Integer(100_000)
+  Integer getLocalCombineMaxBufferedRecords();
+
   void setFlinkConfDir(String confDir);
 
   static FlinkPipelineOptions defaults() {
