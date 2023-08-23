@@ -22,9 +22,22 @@ applyJavaNature(
 )
 
 dependencies {
-    rootProject.subprojects.each { subproject ->
-        if (subproject.subprojects.isEmpty() && (subproject.path.startsWith(":model") || subproject.path.startsWith(":runners") || subproject.path.startsWith(":sdks"))) {
-            implementation project(subproject.path)
-        }
-    }
+    implementation project(":model:pipeline")
+
+    implementation project(":runners:core-construction-java")
+    implementation project(":runners:core-java")
+    implementation project(":runners:java-fn-execution")
+    implementation project(":runners:samza")
+    implementation project(":runners:spark:2")
+    implementation project(":runners:spark:3")
+    implementation project(":runners:portability:java")
+
+    implementation project(":sdks:java:core")
+    implementation project(":sdks:java:extensions:join-library")
+    implementation project(":sdks:java:extensions:sorter")
+    implementation project(":sdks:java:extensions:sql")
+    implementation project(":sdks:java:io:hadoop-common")
+    implementation project(":sdks:java:io:hadoop-file-system")
+    implementation project(":sdks:java:io:hadoop-format")
+    implementation project(":sdks:java:io:kafka")
 }
