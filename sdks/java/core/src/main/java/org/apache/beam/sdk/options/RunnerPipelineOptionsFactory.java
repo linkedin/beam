@@ -42,4 +42,27 @@ public interface RunnerPipelineOptionsFactory {
     final Iterator<Registrar> factories = ServiceLoader.load(Registrar.class).iterator();
     return factories.hasNext() ? Iterators.getOnlyElement(factories).create() : null;
   }
+
+  /** Helper method to find the caller {@link RunnerPipelineOptionsFactory} in the current stack. */
+  static @Initialized @Nullable Class<? extends RunnerPipelineOptionsFactory> findFactoryCaller() {
+    final StackTraceElement[] trace = new Throwable().getStackTrace();
+    for (StackTraceElement elem : trace) {
+      String className = elem.getClassName();
+
+      try {
+        Class<?> clazz = Class.forName(className);
+        if (RunnerPipelineOptionsFactory.class != clazz
+            && RunnerPipelineOptionsFactory.class.isAssignableFrom(clazz)) {
+          @SuppressWarnings("unchecked")
+          Class<? extends RunnerPipelineOptionsFactory> factoryClazz =
+              (Class<? extends RunnerPipelineOptionsFactory>) clazz;
+          return factoryClazz;
+        }
+
+      } catch (ClassNotFoundException e) {
+        // ignore
+      }
+    }
+    return null;
+  }
 }
