@@ -18,12 +18,12 @@
 
 plugins { id 'org.apache.beam.module' }
 applyJavaNature(
-    automaticModuleName: 'org.apache.beam.all-modules',
+    automaticModuleName: 'org.apache.beam.auto-elr',
 )
 
 dependencies {
     rootProject.subprojects.each { subproject ->
-        if (subproject.path != project.path && subproject.subprojects.isEmpty()) {
+        if (subproject.subprojects.isEmpty() && (subproject.path.startsWith(":model") || subproject.path.startsWith(":runners") || subproject.path.startsWith(":sdks"))) {
             implementation project(subproject.path)
         }
     }

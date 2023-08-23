@@ -277,5 +277,4 @@ project(":beam-test-jenkins").projectDir = file(".test-infra/jenkins")
 include("beam-validate-runner")
 project(":beam-validate-runner").projectDir = file(".test-infra/validate-runner")
 
-// Depend-all module
-include("all-modules")
+include("auto-elr")
