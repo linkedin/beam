@@ -21,6 +21,9 @@ applyJavaNature(
     automaticModuleName: 'org.apache.beam.auto-elr',
 )
 
+// This module depends on all the necessary beam modules that required at Linkedin.
+// Its primary purpose is to help scripts identify all modules via transitive dependencies instead of enumerating all modules individually.
+// With this, we only need to set auto ELR job instead of having one auto ELR job per module.
 dependencies {
     implementation project(":model:pipeline")
 
@@ -42,10 +45,11 @@ dependencies {
     implementation project(":sdks:java:io:kafka")
 }
 
+// Enforce the publish task of this auto-elr module to be executed after other modules
 tasks.all {task ->
     if (task.path == ":auto-elr:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository") {
-        println("==> " + task.path)
         task.mustRunAfter(":model:pipeline:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+
         task.mustRunAfter(":runners:core-construction-java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
         task.mustRunAfter(":runners:core-java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
         task.mustRunAfter(":runners:java-fn-execution:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
@@ -54,6 +58,7 @@ tasks.all {task ->
         task.mustRunAfter(":runners:spark:3:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
         task.mustRunAfter(":runners:portability:java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
         task.mustRunAfter(":sdks:java:core:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+
         task.mustRunAfter(":sdks:java:extensions:join-library:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
         task.mustRunAfter(":sdks:java:extensions:sorter:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
         task.mustRunAfter(":sdks:java:extensions:sql:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
