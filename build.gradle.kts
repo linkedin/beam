@@ -570,27 +570,6 @@ tasks.register("checkSetup") {
   dependsOn(":examples:java:wordCount")
 }
 
-//tasks.all {
-//  if (name == ":auto-elr:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository") {
-//    dependsOn(":model:pipeline:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":runners:core-construction-java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":runners:core-java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":runners:java-fn-execution:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":runners:samza:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":runners:spark:2:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":runners:spark:3:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":runners:portability:java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":sdks:java:core:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":sdks:java:extensions:join-library:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":sdks:java:extensions:sorter:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":sdks:java:extensions:sql:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":sdks:java:io:hadoop-common:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":sdks:java:io:hadoop-file-system:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":sdks:java:io:hadoop-format:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//    dependsOn(":sdks:java:io:kafka:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-//  }
-//}
-
 //allprojects {
 //  project.getAllTasks(true).forEach {projectTasks ->
 //    if (projectTasks.key.path == ":auto-elr") {
@@ -619,29 +598,29 @@ tasks.register("checkSetup") {
 //  }
 //}
 
-project(":auto-elr").getAllTasks(true).forEach {projectTasks ->
-  projectTasks.value.forEach {task ->
-    println("==>" + task.path)
-    if (task.path == ":auto-elr:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository") {
-      task.mustRunAfter(":model:pipeline:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":runners:core-construction-java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":runners:core-java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":runners:java-fn-execution:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":runners:samza:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":runners:spark:2:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":runners:spark:3:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":runners:portability:java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":sdks:java:core:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":sdks:java:extensions:join-library:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":sdks:java:extensions:sorter:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":sdks:java:extensions:sql:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":sdks:java:io:hadoop-common:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":sdks:java:io:hadoop-file-system:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":sdks:java:io:hadoop-format:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-      task.mustRunAfter(":sdks:java:io:kafka:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-    }
-  }
-}
+//project(":auto-elr").getAllTasks(true).forEach {projectTasks ->
+//  projectTasks.value.forEach {task ->
+//    println("==>" + task.path)
+//    if (task.path == ":auto-elr:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository") {
+//      task.mustRunAfter(":model:pipeline:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":runners:core-construction-java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":runners:core-java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":runners:java-fn-execution:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":runners:samza:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":runners:spark:2:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":runners:spark:3:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":runners:portability:java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":sdks:java:core:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":sdks:java:extensions:join-library:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":sdks:java:extensions:sorter:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":sdks:java:extensions:sql:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":sdks:java:io:hadoop-common:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":sdks:java:io:hadoop-file-system:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":sdks:java:io:hadoop-format:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//      task.mustRunAfter(":sdks:java:io:kafka:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+//    }
+//  }
+//}
 
 
 // Configure the release plugin to do only local work; the release manager determines what, if
