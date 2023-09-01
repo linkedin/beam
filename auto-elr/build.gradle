@@ -47,6 +47,7 @@ dependencies {
   implementation project(":sdks:java:io:hadoop-format")
   implementation project(":sdks:java:io:kafka")
   implementation project(":sdks:java:io:mongodb")
+  implementation project(":sdks:java:io:google-cloud-platform")
 }
 
 // Enforce the publish task of this auto-elr module to be executed after other modules
@@ -74,5 +75,6 @@ tasks.all { task ->
     task.mustRunAfter(":sdks:java:io:hadoop-format:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":sdks:java:io:kafka:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":sdks:java:io:mongodb:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+    task.mustRunAfter(":sdks:java:io:google-cloud-platform:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
   }
 }
