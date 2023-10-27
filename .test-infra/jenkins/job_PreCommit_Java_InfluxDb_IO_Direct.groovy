@@ -16,28 +16,48 @@
  * limitations under the License.
  */
 
-import PrecommitJobBuilder
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.InternalTimeServiceManager;
+import org.apache.flink.streaming.api.operators.InternalTimeServiceManagerImpl;
+import org.apache.flink.streaming.api.operators.sorted.state.BatchExecutionInternalTimeServiceManager;
 
-PrecommitJobBuilder builder = new PrecommitJobBuilder(
-    scope: this,
-    nameBase: 'Java_InfluxDb_IO_Direct',
-    gradleTasks: [
-      ':sdks:java:io:influxdb:build',
-    ],
-    gradleSwitches: [
-      '-PdisableSpotlessCheck=true',
-      '-PdisableCheckStyle=true'
-    ], // spotless checked in separate pre-commit
-    triggerPathPatterns: [
-      '^sdks/java/core/src/main/.*$',
-      '^sdks/java/io/common/.*$',
-      '^sdks/java/io/influxdb/.*$',
-    ],
-    timeoutMins: 60,
-    )
-builder.build {
-  publishers {
-    archiveJunit('**/build/test-results/**/*.xml')
+/** Compatibility layer for {@link AbstractStreamOperator} breaking changes. */
+public abstract class AbstractStreamOperatorCompat<OutputT>
+    extends AbstractStreamOperator<OutputT> {
+
+  /**
+   * Getter for timeServiceManager, which has been made private in Flink 1.11.
+   *
+   * @return Time service manager.
+   */
+  protected InternalTimeServiceManager<?> getTimeServiceManagerCompat() {
+    return getTimeServiceManager()
+        .orElseThrow(() -> new IllegalStateException("Time service manager is not set."));
+  }
+
+  /**
+   * This call has been removed from {@link AbstractStreamOperator} in Flink 1.12.
+   *
+   * <p>{@link InternalTimeServiceManagerImpl#numProcessingTimeTimers()}
+   */
+  protected int numProcessingTimeTimers() {
+    return getTimeServiceManager()
+        .map(
+            manager -> {
+              InternalTimeServiceManager<?> tsm = getTimeServiceManagerCompat();
+              if (tsm instanceof InternalTimeServiceManagerImpl) {
+                final InternalTimeServiceManagerImpl<?> cast =
+                    (InternalTimeServiceManagerImpl<?>) getTimeServiceManagerCompat();
+                return cast.numProcessingTimeTimers();
+              } else if (tsm instanceof BatchExecutionInternalTimeServiceManager) {
+                return 0;
+              } else {
+                throw new IllegalStateException(
+                    String.format(
+                        "Unknown implementation of InternalTimerServiceManager. %s", tsm));
+              }
+            })
+        .orElse(0);
   }
 
   /** Release all of the operator's resources. */

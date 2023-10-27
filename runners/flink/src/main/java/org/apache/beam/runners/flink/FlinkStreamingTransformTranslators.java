@@ -262,6 +262,7 @@ class FlinkStreamingTransformTranslators {
 
         FlinkUnboundedSource<T> unboundedSource =
             FlinkSource.unbounded(
+                transform.getName(),
                 rawSource,
                 new SerializablePipelineOptions(context.getPipelineOptions()),
                 parallelism);
@@ -419,6 +420,7 @@ class FlinkStreamingTransformTranslators {
 
       FlinkBoundedSource<T> flinkBoundedSource =
           FlinkSource.bounded(
+              transform.getName(),
               rawSource,
               new SerializablePipelineOptions(context.getPipelineOptions()),
               parallelism);
