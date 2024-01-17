@@ -676,8 +676,9 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
       return InstanceBuilder.ofType(((Default.InstanceFactory) annotation).value())
           .build()
           .create(proxy);
+    } else {
+      return DefaultOffspringFactory.getFactory().returnDefaultValue(proxy, annotation);
     }
-    return null;
   }
 
   /**
