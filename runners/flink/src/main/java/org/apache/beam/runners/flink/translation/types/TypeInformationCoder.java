@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.beam.runners.flink.translation.types;
 
 import java.io.IOException;
@@ -31,10 +30,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.DataInputViewStreamWrapper;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 
-
-/**
- * Create a Beam {@link Coder} from a Flink {@link TypeInformation}.
- */
+/** Create a Beam {@link Coder} from a Flink {@link TypeInformation}. */
 public class TypeInformationCoder<T> extends Coder<T> {
 
   private final TypeSerializer<T> serializer;
