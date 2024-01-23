@@ -196,7 +196,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     } else if (args != null && "as".equals(method.getName()) && args[0] instanceof Class) {
       @SuppressWarnings("unchecked")
       Class<? extends PipelineOptions> clazz = (Class<? extends PipelineOptions>) args[0];
-      return as(clazz);
+      return as(clazz, (PipelineOptions) proxy);
     } else if (args != null
         && "populateDisplayData".equals(method.getName())
         && args[0] instanceof DisplayData.Builder) {
@@ -275,6 +275,10 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
    * @return An object that implements the interface {@code <T>}.
    */
   <T extends PipelineOptions> T as(Class<T> iface) {
+    return as(iface, null);
+  }
+
+  <T extends PipelineOptions> T as(Class<T> iface, PipelineOptions pipelineOptions) {
     checkNotNull(iface);
     checkArgument(iface.isInterface(), "Not an interface: %s", iface);
 
@@ -300,6 +304,10 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
 
           computedProperties =
               computedProperties.updated(iface, existingOption, propertyDescriptors);
+          // Linkedin specific change: initialize the offspring generator
+          if (pipelineOptions != null) {
+            InvokePipelineOptionsFactory.getFactory().getPipelineOptions(existingOption, iface);
+          }
         }
       }
     }
@@ -676,9 +684,8 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
       return InstanceBuilder.ofType(((Default.InstanceFactory) annotation).value())
           .build()
           .create(proxy);
-    } else {
-      return DefaultOffspringFactory.getFactory().returnDefaultValue(proxy, annotation);
     }
+    return null;
   }
 
   /**
