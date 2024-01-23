@@ -196,7 +196,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     } else if (args != null && "as".equals(method.getName()) && args[0] instanceof Class) {
       @SuppressWarnings("unchecked")
       Class<? extends PipelineOptions> clazz = (Class<? extends PipelineOptions>) args[0];
-      return as(clazz, (PipelineOptions) proxy);
+      return as(clazz, (PipelineOptions) proxy); // LI-specific change to wire in offspring
     } else if (args != null
         && "populateDisplayData".equals(method.getName())
         && args[0] instanceof DisplayData.Builder) {
