@@ -8,6 +8,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 
 @SuppressWarnings("rawtypes")
+/**
+ * Interface to support offspring wire-in for Li
+ */
 public interface InvokePipelineOptionsFactory<T> {
   T getPipelineOptions(T pipelineOptions, Class<T> clazz);
 
