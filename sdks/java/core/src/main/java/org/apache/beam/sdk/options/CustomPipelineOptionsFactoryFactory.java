@@ -7,23 +7,23 @@ import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 
-@SuppressWarnings("rawtypes")
 /**
  * Interface to support offspring wire-in for Li: if input class meets some requirements,
  * the customized pipelineOptions will be initialized.
  *
  */
-public interface InitializePipelineOptionsFactory<T> {
+@SuppressWarnings("rawtypes")
+public interface CustomPipelineOptionsFactoryFactory<T> {
   T initializePipelineOptions(T pipelineOptions, Class<T> clazz);
 
   interface Registrar {
-    InitializePipelineOptionsFactory create();
+    CustomPipelineOptionsFactoryFactory create();
   }
 
 
-  static @Initialized @Nullable InitializePipelineOptionsFactory getFactory() {
-    final Iterator<InitializePipelineOptionsFactory.Registrar>
-        factories = ServiceLoader.load(InitializePipelineOptionsFactory.Registrar.class).iterator();
+  static @Initialized @Nullable CustomPipelineOptionsFactoryFactory getFactory() {
+    final Iterator<CustomPipelineOptionsFactoryFactory.Registrar>
+        factories = ServiceLoader.load(CustomPipelineOptionsFactoryFactory.Registrar.class).iterator();
     return factories.hasNext() ? Iterators.getOnlyElement(factories).create() : null;
   }
 }
