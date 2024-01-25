@@ -13,17 +13,17 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  *
  */
 @SuppressWarnings("rawtypes")
-public interface CustomPipelineOptionsFactoryFactory<T> {
-  T initializePipelineOptions(T pipelineOptions, Class<T> clazz);
+public interface CustomPipelineOptionsInitializer<T> {
+  void init(T pipelineOptions, Class<T> clazz);
 
   interface Registrar {
-    CustomPipelineOptionsFactoryFactory create();
+    CustomPipelineOptionsInitializer create();
   }
 
 
-  static @Initialized @Nullable CustomPipelineOptionsFactoryFactory getFactory() {
-    final Iterator<CustomPipelineOptionsFactoryFactory.Registrar>
-        factories = ServiceLoader.load(CustomPipelineOptionsFactoryFactory.Registrar.class).iterator();
+  static @Initialized @Nullable CustomPipelineOptionsInitializer getFactory() {
+    final Iterator<CustomPipelineOptionsInitializer.Registrar>
+        factories = ServiceLoader.load(CustomPipelineOptionsInitializer.Registrar.class).iterator();
     return factories.hasNext() ? Iterators.getOnlyElement(factories).create() : null;
   }
 }
