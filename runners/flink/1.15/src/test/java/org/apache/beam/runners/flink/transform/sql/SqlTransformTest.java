@@ -21,6 +21,7 @@ import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.NON_
 import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.ORDER;
 import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.ORDERS_DDL;
 import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.PRODUCTS_DDL;
+import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.getPipelineOptions;
 import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.getSingletonOrderPCollection;
 import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.getSingletonPCollection;
 import static org.junit.Assert.fail;
@@ -31,7 +32,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
-import org.apache.beam.runners.flink.FlinkRunner;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.TextualIntegerCoder;
 import org.apache.beam.sdk.testing.PAssert;
@@ -382,14 +382,6 @@ public class SqlTransformTest {
   }
 
   // ---------------- private helper methods -----------------------
-
-  private static FlinkPipelineOptions getPipelineOptions() {
-    FlinkPipelineOptions options = FlinkPipelineOptions.defaults();
-    options.setRunner(FlinkRunner.class);
-    options.setUseDataStreamForBatch(true);
-    options.setParallelism(2);
-    return options;
-  }
 
   private static <T> void verifyRecords(PCollection<T> pCollection, String file, Class<T> clazz)
       throws IOException {
