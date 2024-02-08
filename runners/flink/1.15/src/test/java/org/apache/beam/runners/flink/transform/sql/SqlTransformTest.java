@@ -278,8 +278,8 @@ public class SqlTransformTest {
     pipeline.run(getPipelineOptions());
   }
 
-  @Test(expected = IllegalStateException.class)
-  public void testApplySqlToStreamingJobThrowException() {
+  @Test
+  public void testStreamingMode() throws IOException {
     Pipeline pipeline = Pipeline.create();
     SingleOutputSqlTransform<FlinkSqlTestUtils.Order> transform =
         SqlTransform.of(FlinkSqlTestUtils.Order.class)
@@ -287,6 +287,8 @@ public class SqlTransformTest {
             .withQuery("SELECT orderNumber, product, amount, price, buyer, orderTime FROM Orders");
     pipeline.apply(transform);
 
+    PCollection<FlinkSqlTestUtils.Order> outputs = pipeline.apply(transform);
+    verifyRecords(outputs, "Orders", FlinkSqlTestUtils.Order.class);
     FlinkPipelineOptions options = getPipelineOptions();
     options.setStreaming(true);
     pipeline.run(options);
