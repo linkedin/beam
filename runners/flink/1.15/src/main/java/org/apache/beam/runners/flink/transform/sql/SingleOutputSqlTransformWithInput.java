@@ -37,10 +37,6 @@ import org.apache.flink.table.types.AbstractDataType;
  * PCollection PCollections}. The {@link SingleOutputSqlTransformWithInput} differs from the {@link
  * MultiOutputSqlTransformWithInput} that it only supports one output {@link PCollection}.
  *
- * <p>NOTE: <b>This {@link PTransform} only works with Flink Runner in batch mode.</b>
- *
- * <p>
- *
  * <p>
  *
  * <h1>Specify the input tables</h1>

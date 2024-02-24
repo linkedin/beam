@@ -58,10 +58,6 @@ class FlinkSQLTransformTranslator<InputT, OutputT>
   public void translateNode(
       PTransform<PCollection<InputT>, PCollection<OutputT>> transform,
       FlinkStreamingTranslationContext context) {
-    if (context.isStreaming()) {
-      throw new IllegalStateException(
-          "The current job is a streaming job. Flink SQL transform only support batch jobs.");
-    }
     MultiOutputSqlTransformWithInput<InputT, OutputT> sqlTransform =
         (MultiOutputSqlTransformWithInput) transform;
     StreamTableEnvironment tEnv = StreamTableEnvironment.create(context.getExecutionEnvironment());

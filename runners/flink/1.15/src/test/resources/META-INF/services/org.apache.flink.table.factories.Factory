@@ -17,3 +17,4 @@
 #
 
 org.apache.beam.runners.flink.transform.sql.TestingInMemCatalogFactory
+org.apache.beam.runners.flink.transform.sql.VerifyingTableSinkFactory
