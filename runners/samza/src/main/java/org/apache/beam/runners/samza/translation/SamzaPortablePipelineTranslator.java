@@ -23,12 +23,14 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.runners.core.construction.NativeTransforms;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.core.construction.graph.PipelineNode;
 import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
 import org.apache.beam.runners.samza.SamzaPipelineOptions;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +48,8 @@ public class SamzaPortablePipelineTranslator {
 
   private static final Map<String, TransformTranslator<?>> TRANSLATORS = loadTranslators();
 
+  private static final Set<String> KNOWN_NATIVE_URNS = loadNativeUrns();
+
   private static Map<String, TransformTranslator<?>> loadTranslators() {
     Map<String, TransformTranslator<?>> translators = new HashMap<>();
     for (SamzaPortableTranslatorRegistrar registrar :
@@ -54,6 +58,17 @@ public class SamzaPortablePipelineTranslator {
     }
     LOG.info("{} translators loaded.", translators.size());
     return ImmutableMap.copyOf(translators);
+  }
+
+  private static Set<String> loadNativeUrns() {
+    final ImmutableSet.Builder<String> nativeUrnsBuilder = ImmutableSet.builder();
+    for (NativeTransformUrnRegistrar registrar :
+        ServiceLoader.load(NativeTransformUrnRegistrar.class)) {
+      nativeUrnsBuilder.addAll(registrar.getNativeTransformUrns());
+    }
+    final ImmutableSet<String> nativeUrns = nativeUrnsBuilder.build();
+    LOG.info("Native transform urns loaded: {}", String.join(",", nativeUrns));
+    return nativeUrns;
   }
 
   private SamzaPortablePipelineTranslator() {}
@@ -107,6 +122,16 @@ public class SamzaPortablePipelineTranslator {
           .put(PTransformTranslation.TEST_STREAM_TRANSFORM_URN, new SamzaTestStreamTranslator<>())
           .put(ExecutableStage.URN, new ParDoBoundMultiTranslator<>())
           .build();
+    }
+  }
+
+  /** Predicate to determine whether a URN is a Samza native transform. */
+  @AutoService(NativeTransforms.IsNativeTransform.class)
+  public static class IsSamzaNativeTransform implements NativeTransforms.IsNativeTransform {
+    @Override
+    public boolean test(RunnerApi.PTransform pTransform) {
+      final String pTransformUrn = PTransformTranslation.urnForTransformOrNull(pTransform);
+      return KNOWN_NATIVE_URNS.contains(pTransformUrn);
     }
   }
 }
