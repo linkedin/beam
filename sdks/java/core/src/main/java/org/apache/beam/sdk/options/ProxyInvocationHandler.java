@@ -305,8 +305,8 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
           computedProperties =
               computedProperties.updated(iface, existingOption, propertyDescriptors);
           // Linkedin specific change: initialize the offspring generator
-          if (pipelineOptions != null && InitializePipelineOptionsFactory.getFactory() != null) {
-            InitializePipelineOptionsFactory.getFactory().initializePipelineOptions(existingOption, iface);
+          if (pipelineOptions != null && InvokePipelineOptionsFactory.getFactory() != null) {
+            InvokePipelineOptionsFactory.getFactory().getPipelineOptions(existingOption, iface);
           }
         }
       }
