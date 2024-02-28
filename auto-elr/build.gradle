@@ -57,8 +57,8 @@ tasks.all { task ->
     task.mustRunAfter(":runners:spark:2:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":runners:spark:3:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":runners:portability:java:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
-
     task.mustRunAfter(":sdks:java:core:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+
     task.mustRunAfter(":sdks:java:extensions:join-library:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":sdks:java:extensions:sorter:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":sdks:java:extensions:sql:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
