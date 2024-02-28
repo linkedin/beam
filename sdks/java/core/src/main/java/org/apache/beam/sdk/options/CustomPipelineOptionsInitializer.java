@@ -17,19 +17,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public interface CustomPipelineOptionsInitializer<T> {
   void init(T pipelineOptions, Class<T> clazz);
 
-  /**
-   * Inject the implementation for the interface
-   * <p>Usage:
-   *
-   * <pre>{@code
-   *  @AutoService(CustomPipelineOptionsInitializer.Registrar.class)
-   *   public static class Registrar implements CustomPipelineOptions.Registrar {
-   *     @Override
-   *     public CustomPipelineOptions create() {
-   *       return new CustomPipelineOptions();
-   *     }
-   *   }</pre>
-   */
   interface Registrar {
     CustomPipelineOptionsInitializer create();
   }
@@ -37,7 +24,7 @@ public interface CustomPipelineOptionsInitializer<T> {
 
   static @Initialized @Nullable CustomPipelineOptionsInitializer get() {
     final Iterator<CustomPipelineOptionsInitializer.Registrar>
-        initializer = ServiceLoader.load(CustomPipelineOptionsInitializer.Registrar.class).iterator();
-    return initializer.hasNext() ? Iterators.getOnlyElement(initializer).create() : null;
+        factories = ServiceLoader.load(CustomPipelineOptionsInitializer.Registrar.class).iterator();
+    return factories.hasNext() ? Iterators.getOnlyElement(factories).create() : null;
   }
 }
