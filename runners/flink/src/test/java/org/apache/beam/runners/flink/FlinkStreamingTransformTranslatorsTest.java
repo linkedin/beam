@@ -76,8 +76,7 @@ public class FlinkStreamingTransformTranslatorsTest {
     Object sourceTransform =
         applyReadSourceTransform(transform, PCollection.IsBounded.BOUNDED, env);
 
-    FlinkBoundedSource<?> source =
-        (FlinkBoundedSource<?>) ((SourceTransformation<?, ?, ?>) sourceTransform).getSource();
+    FlinkBoundedSource<?> source = (FlinkBoundedSource<?>) ((SourceTransformation<?, ?, ?>) sourceTransform).getSource();
 
     assertEquals(maxParallelism, source.getNumSplits());
   }
@@ -95,8 +94,7 @@ public class FlinkStreamingTransformTranslatorsTest {
     Object sourceTransform =
         applyReadSourceTransform(transform, PCollection.IsBounded.BOUNDED, env);
 
-    FlinkBoundedSource<?> source =
-        (FlinkBoundedSource<?>) ((SourceTransformation<?, ?, ?>) sourceTransform).getSource();
+    FlinkBoundedSource<?> source = (FlinkBoundedSource<?>) ((SourceTransformation<?, ?, ?>) sourceTransform).getSource();
 
     assertEquals(parallelism, source.getNumSplits());
   }
@@ -119,8 +117,7 @@ public class FlinkStreamingTransformTranslatorsTest {
 
     FlinkSource<?, ?> source =
         (FlinkSource<?, ?>)
-            ((SourceTransformation<?, ?, ?>) Iterables.getOnlyElement(sourceTransform.getInputs()))
-                .getSource();
+            ((SourceTransformation<?, ?, ?>) Iterables.getOnlyElement(sourceTransform.getInputs())).getSource();
 
     assertEquals(maxParallelism, source.getNumSplits());
   }
@@ -141,8 +138,7 @@ public class FlinkStreamingTransformTranslatorsTest {
 
     FlinkSource<?, ?> source =
         (FlinkSource<?, ?>)
-            ((SourceTransformation<?, ?, ?>) Iterables.getOnlyElement(sourceTransform.getInputs()))
-                .getSource();
+            ((SourceTransformation<?, ?, ?>) Iterables.getOnlyElement(sourceTransform.getInputs())).getSource();
 
     assertEquals(parallelism, source.getNumSplits());
   }
