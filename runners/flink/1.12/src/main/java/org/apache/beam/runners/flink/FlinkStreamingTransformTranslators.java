@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,21 +21,15 @@ import static java.lang.String.format;
 import static org.apache.beam.runners.core.construction.SplittableParDo.SPLITTABLE_PROCESS_URN;
 
 import com.google.auto.service.AutoService;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.ServiceLoader;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import org.apache.beam.runners.core.KeyedWorkItem;
 import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems;
 import org.apache.beam.runners.core.SystemReduceFn;
@@ -63,10 +57,8 @@ import org.apache.beam.runners.flink.translation.wrappers.streaming.io.source.Fl
 import org.apache.beam.runners.flink.translation.wrappers.streaming.io.source.bounded.FlinkBoundedSource;
 import org.apache.beam.runners.flink.translation.wrappers.streaming.io.source.unbounded.FlinkUnboundedSource;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
-import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
-import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.VoidCoder;
@@ -89,8 +81,6 @@ import org.apache.beam.sdk.transforms.reflect.DoFnSignature;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignatures;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
-import org.apache.beam.sdk.transforms.windowing.PaneInfo;
-import org.apache.beam.sdk.transforms.windowing.TimestampCombiner;
 import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.AppliedCombineFn;
 import org.apache.beam.sdk.util.CoderUtils;
@@ -107,29 +97,17 @@ import org.apache.beam.sdk.values.ValueWithRecordId;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
-import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterables;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Maps;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeutils.TypeComparator;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.core.memory.DataInputView;
-import org.apache.flink.core.memory.DataOutputView;
-import org.apache.flink.core.memory.MemorySegment;
-import org.apache.flink.runtime.memory.MemoryAllocationException;
-import org.apache.flink.runtime.memory.MemoryManager;
-import org.apache.flink.runtime.operators.chaining.ExceptionInChainedStubException;
-import org.apache.flink.runtime.operators.sort.InMemorySorter;
-import org.apache.flink.runtime.operators.sort.NormalizedKeySorter;
 import org.apache.flink.runtime.state.CheckpointListener;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -140,20 +118,11 @@ import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
-import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
-import org.apache.flink.streaming.api.operators.ChainingStrategy;
-import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
 import org.apache.flink.streaming.api.watermark.Watermark;
-import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.MutableObjectIterator;
 import org.apache.flink.util.OutputTag;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.joda.time.Instant;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This class contains all the mappings between Beam and Flink <b>streaming</b> transformations. The
@@ -260,12 +229,16 @@ class FlinkStreamingTransformTranslators {
                 ? context.getExecutionEnvironment().getMaxParallelism()
                 : context.getExecutionEnvironment().getParallelism();
 
-        FlinkUnboundedSource<T> unboundedSource = FlinkSource.unbounded(
-            rawSource, new SerializablePipelineOptions(context.getPipelineOptions()), parallelism);
+        FlinkUnboundedSource<T> unboundedSource =
+            FlinkSource.unbounded(
+                rawSource,
+                new SerializablePipelineOptions(context.getPipelineOptions()),
+                parallelism);
         nonDedupSource =
             context
                 .getExecutionEnvironment()
-                .fromSource(unboundedSource, WatermarkStrategy.noWatermarks(), fullName, withIdTypeInfo)
+                .fromSource(
+                    unboundedSource, WatermarkStrategy.noWatermarks(), fullName, withIdTypeInfo)
                 .uid(fullName);
 
         if (rawSource.requiresDeduping()) {
@@ -376,7 +349,8 @@ class FlinkStreamingTransformTranslators {
     @Override
     public void translateNode(
         PTransform<PBegin, PCollection<T>> transform, FlinkStreamingTranslationContext context) {
-      if (ReadTranslation.sourceIsBounded(context.getCurrentTransform()) == PCollection.IsBounded.BOUNDED) {
+      if (ReadTranslation.sourceIsBounded(context.getCurrentTransform())
+          == PCollection.IsBounded.BOUNDED) {
         boundedTranslator.translateNode(transform, context);
       } else {
         unboundedTranslator.translateNode(transform, context);
@@ -412,17 +386,19 @@ class FlinkStreamingTransformTranslators {
               ? context.getExecutionEnvironment().getMaxParallelism()
               : context.getExecutionEnvironment().getParallelism();
 
-      FlinkBoundedSource<T> flinkBoundedSource = FlinkSource.bounded(
-          rawSource,
-          new SerializablePipelineOptions(context.getPipelineOptions()),
-          parallelism);
+      FlinkBoundedSource<T> flinkBoundedSource =
+          FlinkSource.bounded(
+              rawSource,
+              new SerializablePipelineOptions(context.getPipelineOptions()),
+              parallelism);
 
       DataStream<WindowedValue<T>> source;
       try {
         source =
             context
                 .getExecutionEnvironment()
-                .fromSource(flinkBoundedSource, WatermarkStrategy.noWatermarks(), fullName, outputTypeInfo)
+                .fromSource(
+                    flinkBoundedSource, WatermarkStrategy.noWatermarks(), fullName, outputTypeInfo)
                 .uid(fullName);
       } catch (Exception e) {
         throw new RuntimeException("Error while translating BoundedSource: " + rawSource, e);
@@ -590,9 +566,9 @@ class FlinkStreamingTransformTranslators {
       KeySelector<WindowedValue<InputT>, ?> keySelector = null;
       boolean stateful = false;
       DoFnSignature signature = DoFnSignatures.getSignature(doFn.getClass());
-      if (!signature.stateDeclarations().isEmpty() ||
-          !signature.timerDeclarations().isEmpty() ||
-          !signature.timerFamilyDeclarations().isEmpty()) {
+      if (!signature.stateDeclarations().isEmpty()
+          || !signature.timerDeclarations().isEmpty()
+          || !signature.timerFamilyDeclarations().isEmpty()) {
         // Based on the fact that the signature is stateful, DoFnSignatures ensures
         // that it is also keyed
         keyCoder = ((KvCoder) input.getCoder()).getKeyCoder();
@@ -924,7 +900,7 @@ class FlinkStreamingTransformTranslators {
       String fullName = context.getOutput(transform).getName();
       SingleOutputStreamOperator<WindowedValue<T>> outputDataStream =
           inputDataStream
-              .flatMap(assignWindowsFunction, typeInfo)
+              .flatMap(assignWindowsFunction)
               .name(fullName)
               .uid(fullName)
               .returns(typeInfo);
@@ -1043,7 +1019,7 @@ class FlinkStreamingTransformTranslators {
     }
   }
 
-  private static class CombinePerKeyTranslator<K, InputT, OutputT, AccumT>
+  private static class CombinePerKeyTranslator<K, InputT, OutputT>
       extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<
           PTransform<PCollection<KV<K, InputT>>, PCollection<KV<K, OutputT>>>> {
 
@@ -1068,235 +1044,69 @@ class FlinkStreamingTransformTranslators {
     public void translateNode(
         PTransform<PCollection<KV<K, InputT>>, PCollection<KV<K, OutputT>>> transform,
         FlinkStreamingTranslationContext context) {
+      String fullName = getCurrentTransformName(context);
       PCollection<KV<K, InputT>> input = context.getInput(transform);
 
       @SuppressWarnings("unchecked")
       WindowingStrategy<?, BoundedWindow> windowingStrategy =
           (WindowingStrategy<?, BoundedWindow>) input.getWindowingStrategy();
 
-      Coder<BoundedWindow> windowCoder = windowingStrategy.getWindowFn().windowCoder();
-
       KvCoder<K, InputT> inputKvCoder = (KvCoder<K, InputT>) input.getCoder();
+
+      SingletonKeyedWorkItemCoder<K, InputT> workItemCoder =
+          SingletonKeyedWorkItemCoder.of(
+              inputKvCoder.getKeyCoder(),
+              inputKvCoder.getValueCoder(),
+              input.getWindowingStrategy().getWindowFn().windowCoder());
 
       DataStream<WindowedValue<KV<K, InputT>>> inputDataStream = context.getInputDataStream(input);
 
-      GlobalCombineFn<InputT, AccumT, OutputT> combineFn = ((Combine.PerKey) transform).getFn();
-      List<PCollectionView<?>> sideInputs = ((Combine.PerKey) transform).getSideInputs();
-      String fullName = getCurrentTransformName(context);
+      WindowedValue.FullWindowedValueCoder<KeyedWorkItem<K, InputT>> windowedWorkItemCoder =
+          WindowedValue.getFullCoder(
+              workItemCoder, input.getWindowingStrategy().getWindowFn().windowCoder());
 
-      Coder<OutputT> outputCoder =
-          ((KvCoder<K, OutputT>) context.getOutput(transform).getCoder()).getValueCoder();
-
-      Coder<AccumT> accumulatorCoder;
-      try {
-        CoderRegistry coderRegistry = input.getPipeline().getCoderRegistry();
-        accumulatorCoder =
-            combineFn.getAccumulatorCoder(coderRegistry, inputKvCoder.getValueCoder());
-      } catch (CannotProvideCoderException e) {
-        throw new RuntimeException(e);
-      }
-
-      if (!context.isStreaming() && !windowingStrategy.needsMerge() && sideInputs.isEmpty()) {
-        // We will translate the CombineByKey to local partial combine + global combine only if all
-        // the following conditions are met:
-        // 1. This is a batch job. The main benefit of local partial combine is to reduce the
-        // shuffle traffic. However, this only works for batch jobs. For streaming jobs local
-        // combine needs to work with things like mini-batch, which does not exist in
-        // Flink DataStream.
-        // 2. The window is non-merging. For merging windows, local combine may generate incorrect
-        // merged window.
-        // 3. There is no sideInputs. In order to ensure the correct result for local and global
-        // combine, the side inputs need to be read by both the local and global combine. This
-        // might be an issue if reading from the side inputs is expensive.
-
-        // For non-merging window, we use the Kv<Key, Window> as the composite key for local combine
-        // for memory efficiency. The global combine will still use the original key.
-        KvCoder<K, BoundedWindow> keyAndWindowCoder =
-            KvCoder.of(inputKvCoder.getKeyCoder(), windowCoder);
-
-        TypeInformation<WindowedValue<KV<K, AccumT>>> partiallyReducedStreamTypeinfo =
-            new CoderTypeInformation<>(
-                WindowedValue.getFullCoder(
-                    KvCoder.of(inputKvCoder.getKeyCoder(), accumulatorCoder),
-                    windowingStrategy.getWindowFn().windowCoder()),
-                context.getPipelineOptions());
-
-        DataStream<WindowedValue<KV<K, AccumT>>> partiallyReducedStreamWithRawKey =
-            inputDataStream.transform(
-                "localSortAndCombineByKey",
-                partiallyReducedStreamTypeinfo,
-                new InMemSortAndCombineOperator<K, InputT, AccumT> (
-                    inputDataStream
-                        .getType()
-                        .createSerializer(context.getExecutionEnvironment().getConfig()),
-                    (SortKeyEncoder<WindowedValue<KV<K, InputT>>>) record -> encodeSortKey(record, keyAndWindowCoder),
-                    (Combine.CombineFn<InputT, AccumT, ?>) combineFn,
-                    windowingStrategy));
-        StreamingTranslatorsUtil.setOperatorManagedMemoryForTransformation(
-            partiallyReducedStreamWithRawKey.getTransformation(), 1);
-
-        Coder<WindowedValue<KV<K, OutputT>>> reducedResultCoder =
-            WindowedValue.FullWindowedValueCoder.of(
-                KvCoder.of(inputKvCoder.getKeyCoder(), outputCoder),
-                windowingStrategy.getWindowFn().windowCoder());
-
-        TypeInformation<WindowedValue<KV<K, OutputT>>> reducedResultTypeInfo =
-            new CoderTypeInformation<>(reducedResultCoder, context.getPipelineOptions());
-
-        DataStream<WindowedValue<KV<K, OutputT>>> outDataStream =
-            partiallyReducedStreamWithRawKey
-                .keyBy(
-                    r -> KV.of(r.getValue().getKey(), Iterables.getOnlyElement(r.getWindows())),
-                    new CoderTypeInformation<>(keyAndWindowCoder, context.getPipelineOptions()))
-                .reduce(createGlobalReduceFn((Combine.CombineFn<?, AccumT, ?>) combineFn, windowingStrategy))
-                .map(new RichMapFunction<WindowedValue<KV<K, AccumT>>, WindowedValue<KV<K, OutputT>>>() {
-                  @Override
-                  public WindowedValue<KV<K, OutputT>> map(WindowedValue<KV<K, AccumT>> r) throws Exception {
-                    OutputT output = ((Combine.CombineFn<?, AccumT, OutputT>) combineFn)
-                          .extractOutput(r.getValue().getValue());
-                    return WindowedValue.of(
-                        KV.of(r.getValue().getKey(), output),
-                        r.getTimestamp(),
-                        Iterables.getOnlyElement(r.getWindows()),
-                        r.getPane());
-                    }
-                  }, reducedResultTypeInfo);
-
-        context.setOutputDataStream(context.getOutput(transform), outDataStream);
-
-      } else {
-        // For streaming jobs / merging windows / non-empty sides inputs, we fall back to global
-        // reduce.
-        KeySelector<WindowedValue<KeyedWorkItem<K, InputT>>, ByteBuffer> keySelector =
-            getKeySelector(inputKvCoder.getKeyCoder(), context);
-
-        WindowedValue.FullWindowedValueCoder<KeyedWorkItem<K, InputT>> windowedWorkItemCoder =
-            getWindowedWorkItemCoder(
-                inputKvCoder.getKeyCoder(), inputKvCoder.getValueCoder(), windowingStrategy);
-
-        DataStream<WindowedValue<KeyedWorkItem<K, InputT>>> workItemStream =
-            toKeyedWorkItemStream(inputDataStream, windowedWorkItemCoder, context);
-
-        DataStream<WindowedValue<KV<K, OutputT>>> outDataStream =
-            reduceWindowedKvStream(
-                context,
-                workItemStream,
-                inputKvCoder,
-                windowedWorkItemCoder,
-                keySelector,
-                DataStream::keyBy,
-                combineFn,
-                accumulatorCoder,
-                outputCoder,
-                windowingStrategy,
-                sideInputs,
-                fullName);
-
-        context.setOutputDataStream(context.getOutput(transform), outDataStream);
-      }
-    }
-
-    private static <KeyT, ValueT> byte[] encodeSortKey(
-        WindowedValue<KV<KeyT, ValueT>> record,
-        KvCoder<KeyT, BoundedWindow> keyCoder) {
-      try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-        BoundedWindow window = Iterables.getOnlyElement(record.getWindows());
-        keyCoder.encode(KV.of(record.getValue().getKey(), window), baos);
-        return baos.toByteArray();
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    private static <KeyT, ValueT>
-        KeySelector<WindowedValue<KeyedWorkItem<KeyT, ValueT>>, ByteBuffer> getKeySelector(
-            Coder<KeyT> keyCoder, FlinkStreamingTranslationContext context) {
-      return new WorkItemKeySelector<>(
-          keyCoder, new SerializablePipelineOptions(context.getPipelineOptions()));
-    }
-
-    private static <KeyT, ValueT>
-        WindowedValue.FullWindowedValueCoder<KeyedWorkItem<KeyT, ValueT>> getWindowedWorkItemCoder(
-            Coder<KeyT> keyCoder,
-            Coder<ValueT> valueCoder,
-            WindowingStrategy<?, BoundedWindow> windowingStrategy) {
-      SingletonKeyedWorkItemCoder<KeyT, ValueT> workItemCoder =
-          SingletonKeyedWorkItemCoder.of(
-              keyCoder, valueCoder, windowingStrategy.getWindowFn().windowCoder());
-
-      return WindowedValue.getFullCoder(
-          workItemCoder, windowingStrategy.getWindowFn().windowCoder());
-    }
-
-    private static <KeyT, ValueT>
-        DataStream<WindowedValue<KeyedWorkItem<KeyT, ValueT>>> toKeyedWorkItemStream(
-            DataStream<WindowedValue<KV<KeyT, ValueT>>> inputStream,
-            WindowedValue.FullWindowedValueCoder<KeyedWorkItem<KeyT, ValueT>> windowedWorkItemCoder,
-            FlinkStreamingTranslationContext context) {
-
-      // Convert the input stream to a Stream of KeyedWorkItem
-      CoderTypeInformation<WindowedValue<KeyedWorkItem<KeyT, ValueT>>> workItemTypeInfo =
+      CoderTypeInformation<WindowedValue<KeyedWorkItem<K, InputT>>> workItemTypeInfo =
           new CoderTypeInformation<>(windowedWorkItemCoder, context.getPipelineOptions());
 
-      return inputStream
-          .flatMap(new ToKeyedWorkItem<>(context.getPipelineOptions()), workItemTypeInfo)
-          .returns(workItemTypeInfo)
-          .name("ToKeyedWorkItem");
-    }
+      DataStream<WindowedValue<KeyedWorkItem<K, InputT>>> workItemStream =
+          inputDataStream
+              .flatMap(new ToKeyedWorkItem<>(context.getPipelineOptions()))
+              .returns(workItemTypeInfo)
+              .name("ToKeyedWorkItem");
 
-    private static <KeyT, ValueT, ResultT, AccumT>
-        DataStream<WindowedValue<KV<KeyT, ResultT>>> reduceWindowedKvStream(
-            FlinkStreamingTranslationContext context,
-            DataStream<WindowedValue<KeyedWorkItem<KeyT, ValueT>>> workItemStream,
-            KvCoder<KeyT, ValueT> inputKvCoder,
-            WindowedValue.FullWindowedValueCoder<KeyedWorkItem<KeyT, ValueT>> windowedWorkItemCoder,
-            KeySelector<WindowedValue<KeyedWorkItem<KeyT, ValueT>>, ByteBuffer> keySelector,
-            BiFunction<
-                    DataStream<WindowedValue<KeyedWorkItem<KeyT, ValueT>>>,
-                    KeySelector<WindowedValue<KeyedWorkItem<KeyT, ValueT>>, ByteBuffer>,
-                    KeyedStream<WindowedValue<KeyedWorkItem<KeyT, ValueT>>, ByteBuffer>>
-                keyedStreamCreator,
-            GlobalCombineFn<ValueT, AccumT, ResultT> combineFn,
-            Coder<AccumT> accumulatorCoder,
-            Coder<ResultT> outputCoder,
-            WindowingStrategy<?, BoundedWindow> windowingStrategy,
-            List<PCollectionView<?>> sideInputs,
-            String operatorName) {
+      WorkItemKeySelector<K, InputT> keySelector =
+          new WorkItemKeySelector<>(
+              inputKvCoder.getKeyCoder(),
+              new SerializablePipelineOptions(context.getPipelineOptions()));
+      KeyedStream<WindowedValue<KeyedWorkItem<K, InputT>>, ByteBuffer> keyedWorkItemStream =
+          workItemStream.keyBy(keySelector);
 
-      // Create a keyed stream using the provided keyed stream creating logic.
-      KeyedStream<WindowedValue<KeyedWorkItem<KeyT, ValueT>>, ByteBuffer> keyedWorkItemStream =
-          keyedStreamCreator.apply(workItemStream, keySelector);
-
-      SystemReduceFn<KeyT, ValueT, ?, ResultT, BoundedWindow> reduceFn =
+      GlobalCombineFn<? super InputT, ?, OutputT> combineFn = ((Combine.PerKey) transform).getFn();
+      SystemReduceFn<K, InputT, ?, OutputT, BoundedWindow> reduceFn =
           SystemReduceFn.combining(
               inputKvCoder.getKeyCoder(),
-              AppliedCombineFn.withAccumulatorCoder(
-                  combineFn,
-                  accumulatorCoder,
-                  Collections.emptyList(),
-                  inputKvCoder,
-                  windowingStrategy));
+              AppliedCombineFn.withInputCoder(
+                  combineFn, input.getPipeline().getCoderRegistry(), inputKvCoder));
 
-      Coder<WindowedValue<KV<KeyT, ResultT>>> reducedResultCoder =
-          WindowedValue.FullWindowedValueCoder.of(
-              KvCoder.of(inputKvCoder.getKeyCoder(), outputCoder),
-              windowingStrategy.getWindowFn().windowCoder());
+      Coder<WindowedValue<KV<K, OutputT>>> outputCoder =
+          context.getWindowedInputCoder(context.getOutput(transform));
+      TypeInformation<WindowedValue<KV<K, OutputT>>> outputTypeInfo =
+          context.getTypeInfo(context.getOutput(transform));
 
-      TypeInformation<WindowedValue<KV<KeyT, ResultT>>> reducedResultTypeInfo =
-          new CoderTypeInformation<>(reducedResultCoder, context.getPipelineOptions());
+      List<PCollectionView<?>> sideInputs = ((Combine.PerKey) transform).getSideInputs();
 
       if (sideInputs.isEmpty()) {
-        TupleTag<KV<KeyT, ResultT>> mainTag = new TupleTag<>("main output");
-        WindowDoFnOperator<KeyT, ValueT, ResultT> doFnOperator =
+        TupleTag<KV<K, OutputT>> mainTag = new TupleTag<>("main output");
+        WindowDoFnOperator<K, InputT, OutputT> doFnOperator =
             new WindowDoFnOperator<>(
                 reduceFn,
-                operatorName,
+                fullName,
                 (Coder) windowedWorkItemCoder,
                 mainTag,
                 Collections.emptyList(),
                 new DoFnOperator.MultiOutputOutputManagerFactory<>(
                     mainTag,
-                    reducedResultCoder,
+                    outputCoder,
                     new SerializablePipelineOptions(context.getPipelineOptions())),
                 windowingStrategy,
                 new HashMap<>(), /* side-input mapping */
@@ -1305,25 +1115,24 @@ class FlinkStreamingTransformTranslators {
                 inputKvCoder.getKeyCoder(),
                 keySelector);
 
-        return keyedWorkItemStream
-            .transform(operatorName, reducedResultTypeInfo, doFnOperator)
-            .uid(operatorName);
-
+        SingleOutputStreamOperator<WindowedValue<KV<K, OutputT>>> outDataStream =
+            keyedWorkItemStream.transform(fullName, outputTypeInfo, doFnOperator).uid(fullName);
+        context.setOutputDataStream(context.getOutput(transform), outDataStream);
       } else {
         Tuple2<Map<Integer, PCollectionView<?>>, DataStream<RawUnionValue>> transformSideInputs =
             transformSideInputs(sideInputs, context);
 
-        TupleTag<KV<KeyT, ResultT>> mainTag = new TupleTag<>("main output");
-        WindowDoFnOperator<KeyT, ValueT, ResultT> doFnOperator =
+        TupleTag<KV<K, OutputT>> mainTag = new TupleTag<>("main output");
+        WindowDoFnOperator<K, InputT, OutputT> doFnOperator =
             new WindowDoFnOperator<>(
                 reduceFn,
-                operatorName,
+                fullName,
                 (Coder) windowedWorkItemCoder,
                 mainTag,
                 Collections.emptyList(),
                 new DoFnOperator.MultiOutputOutputManagerFactory<>(
                     mainTag,
-                    reducedResultCoder,
+                    outputCoder,
                     new SerializablePipelineOptions(context.getPipelineOptions())),
                 windowingStrategy,
                 transformSideInputs.f0,
@@ -1336,25 +1145,30 @@ class FlinkStreamingTransformTranslators {
         // allowed to have only one input keyed, normally.
 
         TwoInputTransformation<
-                WindowedValue<KeyedWorkItem<KeyT, ValueT>>,
+                WindowedValue<KeyedWorkItem<K, InputT>>,
                 RawUnionValue,
-                WindowedValue<KV<KeyT, ResultT>>>
+                WindowedValue<KV<K, OutputT>>>
             rawFlinkTransform =
                 new TwoInputTransformation<>(
                     keyedWorkItemStream.getTransformation(),
                     transformSideInputs.f1.broadcast().getTransformation(),
-                    context.getCurrentTransform().getTransform().getName(),
+                    transform.getName(),
                     doFnOperator,
-                    reducedResultTypeInfo,
+                    outputTypeInfo,
                     keyedWorkItemStream.getParallelism());
 
         rawFlinkTransform.setStateKeyType(keyedWorkItemStream.getKeyType());
         rawFlinkTransform.setStateKeySelectors(keyedWorkItemStream.getKeySelector(), null);
 
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        SingleOutputStreamOperator<WindowedValue<KV<K, OutputT>>> outDataStream =
+            new SingleOutputStreamOperator(
+                keyedWorkItemStream.getExecutionEnvironment(),
+                rawFlinkTransform) {}; // we have to cheat around the ctor being protected
+
         keyedWorkItemStream.getExecutionEnvironment().addOperator(rawFlinkTransform);
-        return new SingleOutputStreamOperator(
-            keyedWorkItemStream.getExecutionEnvironment(),
-            rawFlinkTransform) {}; // we have to cheat around the ctor being protected
+
+        context.setOutputDataStream(context.getOutput(transform), outDataStream);
       }
     }
   }
@@ -1519,9 +1333,13 @@ class FlinkStreamingTransformTranslators {
 
   static class ToKeyedWorkItem<K, InputT>
       extends RichFlatMapFunction<
-      WindowedValue<KV<K, InputT>>, WindowedValue<KeyedWorkItem<K, InputT>>> {
+          WindowedValue<KV<K, InputT>>, WindowedValue<KeyedWorkItem<K, InputT>>> {
 
     private final SerializablePipelineOptions options;
+
+    static <K, InputT> ToKeyedWorkItem<K, InputT> of(PipelineOptions options) {
+      return new ToKeyedWorkItem<>(options);
+    }
 
     ToKeyedWorkItem(PipelineOptions options) {
       this.options = new SerializablePipelineOptions(options);
@@ -1813,281 +1631,6 @@ class FlinkStreamingTransformTranslators {
       public void close() {
         ctx.close();
       }
-    }
-  }
-
-  private static <K, AccumT> ReduceFunction<WindowedValue<KV<K, AccumT>>> createGlobalReduceFn(
-      final Combine.CombineFn<?, AccumT, ?> combineFn,
-      final WindowingStrategy windowingStrategy) {
-
-    final TimestampCombiner timestampCombiner = windowingStrategy.getTimestampCombiner();
-
-    return (value1, value2) -> {
-      Instant mergedTimestamp = timestampCombiner.combine(value1.getTimestamp(), value2.getTimestamp());
-      AccumT accumValue = combineFn.mergeAccumulators(
-          Arrays.asList(value1.getValue().getValue(), value2.getValue().getValue()));
-      BoundedWindow window = Iterables.getOnlyElement(value1.getWindows());
-      return WindowedValue.of(
-          KV.of(value2.getValue().getKey(), accumValue), mergedTimestamp, window, PaneInfo.NO_FIRING);
-    };
-  }
-
-  /**
-   * A Flink {@link org.apache.flink.streaming.api.operators.StreamOperator} to sort the input
-   * records in memory. The class does the following: 1. Buffer as many input records as possible in
-   * memory. 2. When the free memory runs low, sort the buffered records and emit them. 3. Clear the
-   * buffered records after emitting them, then continue with step 1.
-   */
-  private static class InMemSortAndCombineOperator<K, T, AccumT>
-      extends AbstractStreamOperator<WindowedValue<KV<K, AccumT>>>
-      implements OneInputStreamOperator<WindowedValue<KV<K, T>>, WindowedValue<KV<K, AccumT>>> {
-    private static final Logger LOG = LoggerFactory.getLogger(InMemSortAndCombineOperator.class);
-    private final TypeSerializer<WindowedValue<KV<K, T>>> serializer;
-    private final SortKeyEncoder<WindowedValue<KV<K, T>>> sortKeyEncoder;
-    private final Combine.CombineFn<T, AccumT, ?> combineFn;
-    private final TimestampCombiner timestampCombiner;
-    // The minimum records to buffer before sorting and emitting the buffered records.
-    private transient InMemorySorter<WindowedValue<KV<K, T>>> sorter;
-    private transient List<MemorySegment> memory;
-
-    private InMemSortAndCombineOperator(
-        TypeSerializer<WindowedValue<KV<K, T>>> serializer,
-        SortKeyEncoder<WindowedValue<KV<K, T>>> sortKeyEncoder,
-        Combine.CombineFn<T, AccumT, ?> combineFn,
-        WindowingStrategy windowingStrategy) {
-      this.chainingStrategy = ChainingStrategy.ALWAYS;
-      this.serializer = serializer;
-      this.sortKeyEncoder = sortKeyEncoder;
-      this.combineFn = combineFn;
-      this.timestampCombiner = windowingStrategy.getTimestampCombiner();
-    }
-
-    @Override
-    public void open() throws Exception {
-      super.open();
-      MemoryManager memManager = getContainingTask().getEnvironment().getMemoryManager();
-      StreamConfig taskManagerConfig = getContainingTask().getConfiguration();
-      final int numMemoryPages = memManager.computeNumberOfPages(
-          StreamingTranslatorsUtil.getOperatorManagedMemoryFraction(
-              getOperatorConfig(),
-              taskManagerConfig.getConfiguration(),
-              getUserCodeClassloader()));
-      try {
-        memory = memManager.allocatePages(getContainingTask(), numMemoryPages);
-      } catch (MemoryAllocationException e) {
-        throw new RuntimeException(e);
-      }
-      this.sorter = new NormalizedKeySorter<>(
-          serializer,
-          new RecordComparator<K, T>(sortKeyEncoder), memory);
-    }
-
-    @Override
-    public void close() throws Exception {
-      sorter.dispose();
-      MemoryManager memManager = getContainingTask().getEnvironment().getMemoryManager();
-      memManager.release(memory);
-    }
-
-    @Override
-    public void processElement(StreamRecord<WindowedValue<KV<K, T>>> streamRecord) throws Exception {
-      for (WindowedValue<KV<K, T>> record : streamRecord.getValue().explodeWindows()) {
-        processRecord(record);
-      }
-    }
-
-    @Override
-    public void processWatermark(Watermark mark) throws Exception {
-      if (mark.equals(Watermark.MAX_WATERMARK)) {
-        LOG.info("Emitting all the sorted records on MAX_WATERMARK");
-        sortAndOutput();
-      }
-      super.processWatermark(mark);
-    }
-
-    private void processRecord(WindowedValue<KV<K, T>> record) {
-      String taskName = getContainingTask().getName();
-      try {
-        if (sorter.write(record)) {
-          return;
-        }
-      } catch (IOException e) {
-        throw new ExceptionInChainedStubException(taskName, e);
-      }
-
-      // do the actual sorting
-      try {
-        sortAndOutput();
-      } catch (Exception e) {
-        throw new ExceptionInChainedStubException(taskName, e);
-      }
-
-      try {
-        if (!this.sorter.write(record)) {
-          throw new IOException(
-              "Cannot write record to fresh sort buffer. Record too large.");
-        }
-      } catch (IOException e) {
-        throw new ExceptionInChainedStubException(taskName, e);
-      }
-    }
-
-    private void sortAndOutput() throws IOException {
-      MutableObjectIterator<WindowedValue<KV<K, T>>> iter = sorter.getIterator();
-      WindowedValue<KV<K, T>> record = iter.next();
-
-      while (record != null) {
-        final K currentKey = record.getValue().getKey();
-        final BoundedWindow currentWindow = Iterables.getOnlyElement(record.getWindows());
-        AccumT accumulator = combineFn.createAccumulator();
-        Instant windowTimestamp = record.getTimestamp();
-
-        while (record != null && isSortKeyEqual(record, currentKey, currentWindow)) {
-          accumulator = combineFn.addInput(accumulator, record.getValue().getValue());
-          Instant timestamp = record.getTimestamp();
-          windowTimestamp = timestampCombiner.combine(
-              windowTimestamp, timestampCombiner.assign(currentWindow, timestamp));
-          record = iter.next();
-        }
-        output.collect(new StreamRecord<>(
-            WindowedValue.of(
-                KV.of(currentKey, accumulator),
-                windowTimestamp,
-                currentWindow,
-                PaneInfo.NO_FIRING)));
-      }
-      sorter.reset();
-    }
-
-    private boolean isSortKeyEqual(WindowedValue<KV<K, T>> record, K currentKey, BoundedWindow currentWindow) {
-      return Objects.equals(currentKey, record.getValue().getKey())
-          && Objects.equals(currentWindow, Iterables.getOnlyElement(record.getWindows()));
-    }
-  }
-
-  private interface SortKeyEncoder<T> extends Function<T, byte[]>, Serializable {}
-
-  private static final class RecordComparator<K, T> extends TypeComparator<WindowedValue<KV<K, T>>> {
-
-    private final SortKeyEncoder<WindowedValue<KV<K, T>>> sortKeyEncoder;
-    private final TypeComparator[] comparators = new TypeComparator[] {this};
-    private WindowedValue<KV<K, T>> reference;
-
-    RecordComparator(SortKeyEncoder<WindowedValue<KV<K, T>>> sortKeyEncoder) {
-      this.sortKeyEncoder = sortKeyEncoder;
-    }
-
-    @Override
-    public int hash(WindowedValue<KV<K, T>> record) {
-      return Objects.hash(record.getValue().getKey(), Iterables.getOnlyElement(record.getWindows()));
-    }
-
-    @Override
-    public void setReference(WindowedValue<KV<K, T>> toCompare) {
-      reference = toCompare;
-    }
-
-    @Override
-    public boolean equalToReference(WindowedValue<KV<K, T>> candidate) {
-      return compare(candidate, reference) == 0;
-    }
-
-    @Override
-    public int compareToReference(TypeComparator<WindowedValue<KV<K, T>>> referencedComparator) {
-      return compare(((RecordComparator<K, T>) referencedComparator).reference, reference);
-    }
-
-    @Override
-    public int compare(WindowedValue<KV<K, T>> first, WindowedValue<KV<K, T>> second) {
-      // We can simply use hash code for our purpose.
-      int hashComparison = Integer.compare(hash(first), hash(second));
-      if (hashComparison != 0) {
-        return hashComparison;
-      } else {
-        byte[] serializedFirstKey = sortKeyEncoder.apply(first);
-        byte[] serializedSecondKey = sortKeyEncoder.apply(second);
-        if (serializedFirstKey.length != serializedSecondKey.length) {
-          return serializedFirstKey.length - serializedSecondKey.length;
-        } else {
-          for (int i = 0; i < serializedSecondKey.length; i++) {
-            int res = (int) serializedFirstKey[i] - serializedSecondKey[i];
-            if (res != 0) {
-              return res;
-            }
-          }
-          return 0;
-        }
-      }
-    }
-
-    @Override
-    public int compareSerialized(DataInputView firstSource, DataInputView secondSource) throws IOException {
-      throw new UnsupportedOperationException("Not supported.");
-    }
-
-    @Override
-    public boolean supportsNormalizedKey() {
-      return true;
-    }
-
-    @Override
-    public boolean supportsSerializationWithKeyNormalization() {
-      return false;
-    }
-
-    @Override
-    public int getNormalizeKeyLen() {
-      return Integer.MAX_VALUE;
-    }
-
-    @Override
-    public boolean isNormalizedKeyPrefixOnly(int keyBytes) {
-      return true;
-    }
-
-    @Override
-    public void putNormalizedKey(WindowedValue<KV<K, T>> record, MemorySegment target, int offset, int len) {
-      byte[] serializedKey = sortKeyEncoder.apply(record);
-      int numBytesToPut = Math.min(len, serializedKey.length);
-      target.put(offset, serializedKey, 0, numBytesToPut);
-
-      final int limit = offset + len;
-      int pos = offset + numBytesToPut;
-      while (pos < limit) {
-        target.put(pos++, (byte) 0x0);
-      }
-    }
-
-    @Override
-    public void writeWithKeyNormalization(WindowedValue<KV<K, T>> record, DataOutputView target) throws IOException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public WindowedValue<KV<K, T>> readWithKeyDenormalization(WindowedValue<KV<K, T>> reuse, DataInputView source)
-        throws IOException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean invertNormalizedKey() {
-      return false;
-    }
-
-    @Override
-    public TypeComparator<WindowedValue<KV<K, T>>> duplicate() {
-      return new RecordComparator<K, T>(sortKeyEncoder);
-    }
-
-    @Override
-    public int extractKeys(Object record, Object[] target, int index) {
-      target[index] = record;
-      return 1;
-    }
-
-    @Override
-    public TypeComparator[] getFlatComparators() {
-      return comparators;
     }
   }
 }
