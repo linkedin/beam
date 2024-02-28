@@ -1713,9 +1713,11 @@ public class FlinkStateInternals<K> implements StateInternals {
       return null;
     }
 
-    protected <NamespaceT, StateT extends org.apache.flink.api.common.state.State, T> StateT getOrCreateKeyedState(
-        TypeSerializer<NamespaceT> namespaceSerializer, StateDescriptor<StateT, T> stateDescriptor)
-        throws Exception {
+    protected <NamespaceT, StateT extends org.apache.flink.api.common.state.State, T>
+        StateT getOrCreateKeyedState(
+            TypeSerializer<NamespaceT> namespaceSerializer,
+            StateDescriptor<StateT, T> stateDescriptor)
+            throws Exception {
       return (StateT) keyedStateBackend.getOrCreateKeyedState(namespaceSerializer, stateDescriptor);
     }
   }

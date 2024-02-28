@@ -22,10 +22,7 @@ import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterables;
 import org.apache.flink.runtime.state.KeyedStateBackend;
 
-/**
- * LinkedIn-only: allow custom configuration of {@link
- * org.apache.flink.api.common.state.StateDescriptor} during the Beam state binding.
- */
+/** LinkedIn-only: allow customization in Beam state binding. */
 @SuppressWarnings({"rawtypes", "nullness"})
 public class FlinkStateBinders {
   /** An interface that allows custom {@link org.apache.beam.sdk.state.StateBinder}. */
