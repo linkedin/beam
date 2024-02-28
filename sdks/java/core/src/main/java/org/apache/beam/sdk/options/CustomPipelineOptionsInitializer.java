@@ -15,7 +15,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 @SuppressWarnings("rawtypes")
 public interface CustomPipelineOptionsInitializer<T> {
-  T init(T pipelineOptions, Class<T> clazz);
+  void init(T pipelineOptions, Class<T> clazz);
 
   /**
    * Inject the implementation for the interface
