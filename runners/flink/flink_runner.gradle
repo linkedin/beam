@@ -149,18 +149,11 @@ dependencies {
     permitUnusedDeclared "org.apache.flink:flink-clients:$flink_version"
 
     implementation "org.apache.flink:flink-streaming-java:$flink_version"
-    implementation "org.apache.flink:flink-table:$flink_version"
-    implementation "org.apache.flink:flink-table-api-java:$flink_version"
-    implementation "org.apache.flink:flink-table-api-java-bridge:$flink_version"
-    implementation "org.apache.flink:flink-table-common:$flink_version"
     // RocksDB state backend (included in the Flink distribution)
     provided "org.apache.flink:flink-statebackend-rocksdb:$flink_version"
     testImplementation "org.apache.flink:flink-statebackend-rocksdb:$flink_version"
     testImplementation "org.apache.flink:flink-streaming-java:$flink_version:tests"
     testImplementation "org.apache.flink:flink-test-utils:$flink_version"
-    testImplementation "org.apache.flink:flink-connector-files:$flink_version"
-    testImplementation "org.apache.flink:flink-csv:$flink_version"
-    testRuntimeOnly "org.apache.flink:flink-table-planner_2.12:$flink_version"
 
     miniCluster "org.apache.flink:flink-runtime-web:$flink_version"
   } else {
