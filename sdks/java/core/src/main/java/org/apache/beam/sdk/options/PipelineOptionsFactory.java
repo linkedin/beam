@@ -227,6 +227,8 @@ public class PipelineOptionsFactory {
     private final boolean strictParsing;
     private final boolean isCli;
 
+    private static final ThreadLocal<Boolean> USE_RUNNER_FACTORY =
+        ThreadLocal.withInitial(() -> Boolean.TRUE);
     private static final RunnerPipelineOptionsFactory RUNNER_PIPELINE_OPTIONS_FACTORY =
         RunnerPipelineOptionsFactory.getFactory();
 
@@ -323,11 +325,17 @@ public class PipelineOptionsFactory {
      */
     public <T extends PipelineOptions> T as(Class<T> klass) {
       // LinkedIn specific logic to create PipelineOptions from Runner
-      if (RUNNER_PIPELINE_OPTIONS_FACTORY != null
-          // RunnerPipelineOptionsFactory should NOT be called recursively
-          && RunnerPipelineOptionsFactory.findFactoryCaller() == null) {
+      if (USE_RUNNER_FACTORY.get() && RUNNER_PIPELINE_OPTIONS_FACTORY != null) {
+        // RunnerPipelineOptionsFactory should NOT be used recursively
+        USE_RUNNER_FACTORY.set(false);
 
-        return RUNNER_PIPELINE_OPTIONS_FACTORY.getPipelineOptions(args, klass);
+        T options;
+        try {
+          options = RUNNER_PIPELINE_OPTIONS_FACTORY.getPipelineOptions(args, klass);
+        } finally {
+          USE_RUNNER_FACTORY.set(true);
+        }
+        return options;
       }
 
       Map<String, Object> initialOptions = Maps.newHashMap();
