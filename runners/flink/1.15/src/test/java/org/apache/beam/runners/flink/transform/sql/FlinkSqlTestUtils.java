@@ -28,6 +28,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.beam.runners.flink.FlinkPipelineOptions;
+import org.apache.beam.runners.flink.FlinkRunner;
 import org.apache.beam.runners.flink.translation.types.TypeInformationCoder;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.ValueProvider;
@@ -73,6 +75,22 @@ public class FlinkSqlTestUtils {
               + "  'format' = 'csv',\n"
               + "  'csv.allow-comments' = 'true'\n"
               + ")",
+          getFilePath("Orders"));
+
+  public static final String ORDERS_VERIFYING_SINK_2_DDL =
+      String.format("CREATE TABLE OrdersVerify2 (\n"
+          + "    orderNumber  BIGINT,\n"
+          + "    product      String,\n"
+          + "    amount       INT,\n"
+          + "    price        DECIMAL(8, 2),\n"
+          + "    buyer        STRING,\n"
+          + "    orderTime    TIMESTAMP(3)\n"
+          + ") WITH (\n"
+          + "  'connector' = '%s',\n"
+          + "  '%s' = '%s'\n"
+          + ")",
+          VerifyingTableSinkFactory.IDENTIFIER,
+          VerifyingTableSinkFactory.EXPECTED_RESULT_FILE_PATH_OPTION.key(),
           getFilePath("Orders"));
 
   public static final String PRODUCTS_DDL =
@@ -131,17 +149,7 @@ public class FlinkSqlTestUtils {
 
   public static CatalogTable getOrdersCatalogTable() {
     // Create schema
-    ResolvedSchema resolvedSchema =
-        new ResolvedSchema(
-            Arrays.asList(
-                Column.physical("orderNumber", DataTypes.BIGINT()),
-                Column.physical("product", DataTypes.STRING()),
-                Column.physical("amount", DataTypes.INT()),
-                Column.physical("price", DataTypes.DOUBLE()),
-                Column.physical("buyer", DataTypes.STRING()),
-                Column.physical("orderTime", DataTypes.TIMESTAMP(3))),
-            Collections.emptyList(),
-            UniqueConstraint.primaryKey("UniqueProductName", Collections.singletonList("name")));
+    ResolvedSchema resolvedSchema = getOrdersSchema();
 
     Map<String, String> connectorOptions = new HashMap<>();
     connectorOptions.put(FactoryUtil.CONNECTOR.key(), "filesystem");
@@ -152,11 +160,51 @@ public class FlinkSqlTestUtils {
     final CatalogTable origin =
         CatalogTable.of(
             Schema.newBuilder().fromResolvedSchema(resolvedSchema).build(),
-            "Products Catalog Table",
+            "Orders Catalog Table",
             Collections.emptyList(),
             connectorOptions);
 
     return new ResolvedCatalogTable(origin, resolvedSchema);
+  }
+
+  public static CatalogTable getOrdersVerifyCatalogTable() {
+    // Create schema
+    ResolvedSchema resolvedSchema = getOrdersSchema();
+
+    Map<String, String> connectorOptions = new HashMap<>();
+    connectorOptions.put(FactoryUtil.CONNECTOR.key(), VerifyingTableSinkFactory.IDENTIFIER);
+    connectorOptions.put(VerifyingTableSinkFactory.EXPECTED_RESULT_FILE_PATH_OPTION.key(), getFilePath("Orders"));
+    connectorOptions.put(VerifyingTableSinkFactory.HAS_HEADER_OPTION.key(), "true");
+
+    final CatalogTable origin =
+        CatalogTable.of(
+            Schema.newBuilder().fromResolvedSchema(resolvedSchema).build(),
+            "Orders Catalog Verify Table",
+            Collections.emptyList(),
+            connectorOptions);
+
+    return new ResolvedCatalogTable(origin, resolvedSchema);
+  }
+
+  public static FlinkPipelineOptions getPipelineOptions() {
+    FlinkPipelineOptions options = FlinkPipelineOptions.defaults();
+    options.setRunner(FlinkRunner.class);
+    options.setUseDataStreamForBatch(true);
+    options.setParallelism(2);
+    return options;
+  }
+
+  private static ResolvedSchema getOrdersSchema() {
+    return new ResolvedSchema(
+        Arrays.asList(
+            Column.physical("orderNumber", DataTypes.BIGINT()),
+            Column.physical("product", DataTypes.STRING()),
+            Column.physical("amount", DataTypes.INT()),
+            Column.physical("price", DataTypes.DOUBLE()),
+            Column.physical("buyer", DataTypes.STRING()),
+            Column.physical("orderTime", DataTypes.TIMESTAMP(3))),
+        Collections.emptyList(),
+        UniqueConstraint.primaryKey("UniqueProductName", Collections.singletonList("name")));
   }
 
   // -------------------- public classes ----------------------

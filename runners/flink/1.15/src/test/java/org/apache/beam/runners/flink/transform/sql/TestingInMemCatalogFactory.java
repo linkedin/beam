@@ -18,6 +18,7 @@
 package org.apache.beam.runners.flink.transform.sql;
 
 import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.getOrdersCatalogTable;
+import static org.apache.beam.runners.flink.transform.sql.FlinkSqlTestUtils.getOrdersVerifyCatalogTable;
 
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.GenericInMemoryCatalog;
@@ -34,7 +35,14 @@ public class TestingInMemCatalogFactory implements CatalogFactory {
   public static TestingInMemCatalog getCatalog(String name) {
     TestingInMemCatalog catalog = new TestingInMemCatalog(name, DEFAULT_DATABASE_NAME);
     try {
-      catalog.createTable(new ObjectPath("TestDatabase", "Orders"), getOrdersCatalogTable(), true);
+      catalog.createTable(
+          new ObjectPath("TestDatabase", "Orders"),
+          getOrdersCatalogTable(),
+          true);
+      catalog.createTable(
+          new ObjectPath("TestDatabase", "OrdersVerify"),
+          getOrdersVerifyCatalogTable(),
+          true);
     } catch (TableAlreadyExistException | DatabaseNotExistException e) {
       throw new RuntimeException(e);
     }

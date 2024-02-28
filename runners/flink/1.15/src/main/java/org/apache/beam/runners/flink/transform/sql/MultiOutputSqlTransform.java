@@ -39,10 +39,6 @@ import org.apache.flink.table.types.AbstractDataType;
  * {@link PCollection PCollections}, either {@link SingleOutputSqlTransformWithInput} or {@link
  * MultiOutputSqlTransformWithInput} is the way to go.
  *
- * <p>NOTE: <b>This {@link PTransform} only works with Flink Runner in batch mode.</b>
- *
- * <p>
- *
  * <p>
  *
  * <h1>Specify the input tables</h1>

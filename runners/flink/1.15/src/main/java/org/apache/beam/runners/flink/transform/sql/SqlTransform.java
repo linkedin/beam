@@ -114,6 +114,16 @@ public class SqlTransform<InputT, OutputT> implements Serializable {
     return new SingleOutputSqlTransform<>(of(Integer.class, outputClass));
   }
 
+  /**
+   * Create a {@link StatementOnlySqlTransform} which takes a full script of SQL statements and
+   * execute them. The statements must have at least one <code>INSERT INTO</code> statement.
+   *
+   * @return A {@link StatementOnlySqlTransform}.
+   */
+  public static StatementOnlySqlTransform ofStatements() {
+    return new StatementOnlySqlTransform();
+  }
+
   // --------------------- setters ----------------------------
   /**
    * Use DDL to define Tables. The DDL string can contain multiple {@code CREATE TABLE} / {@code
