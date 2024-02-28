@@ -245,12 +245,10 @@ class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
       if (onTimerInvoker != null) {
         onTimerInvoker.invokeOnTimer(arguments);
       } else if (timerFamilyId.isEmpty()) {
-        // TODO: LISAMZA-18899 Remove this logic once users have consumed all the persisted timers
-        // with empty timer family ids.
+        // TODO: LISAMZA-18899 Remove this logic once users have consumed all the persisted timers with empty timer family ids.
         LOG.warn(
             "Attempted to invoke timer {} on {}, but that timer is not registered.",
-            timerId,
-            delegate.getClass().getName());
+            timerId, delegate.getClass().getName());
       } else {
         throw new IllegalArgumentException(
             String.format(
