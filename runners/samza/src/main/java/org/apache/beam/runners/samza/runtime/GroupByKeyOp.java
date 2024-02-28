@@ -180,19 +180,11 @@ public class GroupByKeyOp<K, InputT, OutputT>
             DoFnSchemaInformation.create(),
             Collections.emptyMap());
 
-    final DoFnRunner<KeyedWorkItem<K, InputT>, KV<K, OutputT>> dropLateDataRunner =
-        pipelineOptions.getDropLateData()
-            ? DoFnRunners.lateDataDroppingRunner(
-                doFnRunner, keyedInternals.timerInternals(), windowingStrategy)
-            : doFnRunner;
-
     final SamzaExecutionContext executionContext =
         (SamzaExecutionContext) context.getApplicationContainerContext();
-    final DoFnRunner<KeyedWorkItem<K, InputT>, KV<K, OutputT>> doFnRunnerWithMetrics =
+    this.fnRunner =
         DoFnRunnerWithMetrics.wrap(
-            dropLateDataRunner, executionContext.getMetricsContainer(), transformFullName);
-
-    this.fnRunner = new DoFnRunnerWithKeyedInternals<>(doFnRunnerWithMetrics, keyedInternals);
+            doFnRunner, executionContext.getMetricsContainer(), transformFullName);
   }
 
   @Override
