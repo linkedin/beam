@@ -79,7 +79,6 @@
   <suppress checks="JavadocPackage" files=".*runners.flink.*BeamFlinkRemoteStreamEnvironment\.java"/>
   <suppress checks="JavadocPackage" files=".*runners.flink.*FlinkCapabilities\.java"/>
   <suppress checks="JavadocPackage" files=".*runners.flink.*ProcessingTimeCallbackCompat\.java"/>
-  <suppress checks="JavadocPackage" files=".*runners.flink.*FlinkStreamingTransformTranslators\.java"/>
 
   <!-- Spark Structured Streaming -->
   <!-- list of version specific classes -->
