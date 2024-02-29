@@ -398,7 +398,7 @@ class BeamModulePlugin implements Plugin<Project> {
 
     // Automatically use the official release version if we are performing a release
     // otherwise append '-SNAPSHOT'
-    project.version = '200.45.12.4'
+    project.version = '200.45.12.5'
     if (isLinkedin(project)) {
       project.ext.mavenGroupId = 'com.linkedin.beam'
     }
