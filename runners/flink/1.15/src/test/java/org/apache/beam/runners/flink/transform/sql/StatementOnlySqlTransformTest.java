@@ -77,6 +77,19 @@ public class StatementOnlySqlTransformTest {
     pipeline.run(getPipelineOptions());
   }
 
+  @Test
+  public void testInsertOverwrite() {
+    SerializableCatalog catalog = TestingInMemCatalogFactory.getCatalog("TestCatalog");
+
+    Pipeline pipeline = Pipeline.create();
+    StatementOnlySqlTransform transform = SqlTransform.ofStatements()
+        .withCatalog("MyCatalog", catalog)
+        .addStatement("INSERT OVERWRITE MyCatalog.TestDatabase.OrdersVerify SELECT * FROM MyCatalog.TestDatabase.Orders;");
+
+    pipeline.apply(transform);
+    pipeline.run(getPipelineOptions());
+  }
+
   // ----------------
   private void testBasics(boolean isStreaming) {
     SerializableCatalog catalog = TestingInMemCatalogFactory.getCatalog("TestCatalog");

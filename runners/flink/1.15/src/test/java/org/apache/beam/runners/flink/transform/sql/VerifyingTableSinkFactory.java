@@ -44,6 +44,7 @@ import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.sink.SinkV2Provider;
+import org.apache.flink.table.connector.sink.abilities.SupportsOverwrite;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.types.logical.BigIntType;
@@ -90,6 +91,12 @@ public class VerifyingTableSinkFactory implements DynamicTableSinkFactory, Seria
     final List<String> columnsToVerify = schema.getColumnNames();
 
     return new SerializableDynamicTableSink() {
+
+      @Override
+      public void applyOverwrite(boolean b) {
+        // Do nothing.
+      }
+
       @Override
       public ChangelogMode getChangelogMode(ChangelogMode requestedMode) {
         return ChangelogMode.all();
@@ -231,7 +238,7 @@ public class VerifyingTableSinkFactory implements DynamicTableSinkFactory, Seria
     }
   }
 
-  interface SerializableDynamicTableSink extends DynamicTableSink, Serializable {
+  interface SerializableDynamicTableSink extends DynamicTableSink, SupportsOverwrite, Serializable {
 
   }
 

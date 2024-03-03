@@ -116,7 +116,7 @@ public class SqlTransform<InputT, OutputT> implements Serializable {
 
   /**
    * Create a {@link StatementOnlySqlTransform} which takes a full script of SQL statements and
-   * execute them. The statements must have at least one <code>INSERT INTO</code> statement.
+   * execute them. The statements must have at least one <code>INSERT</code> statement.
    *
    * @return A {@link StatementOnlySqlTransform}.
    */

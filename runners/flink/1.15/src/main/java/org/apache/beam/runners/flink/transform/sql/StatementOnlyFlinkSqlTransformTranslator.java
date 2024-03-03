@@ -40,7 +40,7 @@ public class StatementOnlyFlinkSqlTransformTranslator
     extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<PTransform<PBegin, PDone>>{
   private static final Logger LOG = LoggerFactory.getLogger(StatementOnlyFlinkSqlTransformTranslator.class);
   public static final String FLINK_STATEMENT_ONLY_SQL_URN = "beam:transform:flink:sql-statements-only:v1";
-  private static final String INSERT_INTO = "INSERT INTO";
+  private static final String INSERT = "INSERT";
 
   @Override
   public void translateNode(PTransform<PBegin, PDone> transform, FlinkStreamingTranslationContext context) {
@@ -53,7 +53,7 @@ public class StatementOnlyFlinkSqlTransformTranslator
     for (String statement : sqlTransform.getStatements()) {
       combinedStatements.add(statement);
       try {
-        if (isInsertIntoStatement(statement)) {
+        if (isInsertStatement(statement)) {
           ss.addInsertSql(statement);
         } else {
           // Not an insert into statement. Treat it as a DDL.
@@ -103,7 +103,7 @@ public class StatementOnlyFlinkSqlTransformTranslator
   }
 
   // ------------------- private helper methods -----------------
-  private static boolean isInsertIntoStatement(String statement) {
-    return statement.substring(0, INSERT_INTO.length()).toUpperCase().startsWith(INSERT_INTO);
+  private static boolean isInsertStatement(String statement) {
+    return statement.substring(0, INSERT.length()).toUpperCase().startsWith(INSERT);
   }
 }
