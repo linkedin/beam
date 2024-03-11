@@ -105,7 +105,7 @@ public class KvCoderTest {
    * org.apache.beam.sdk.coders.PrintBase64Encodings}.
    */
   private static final List<String> TEST_ENCODINGS =
-      Arrays.asList("AP____8P", "BWhlbGxvAA", "B2dvb2RieWX_____Bw");
+      Arrays.asList("AAAAAAD_____Dw", "AAAAAAVoZWxsbwA", "AAAAAAdnb29kYnll_____wc");
 
   @Test
   public void testWireFormatEncode() throws Exception {
