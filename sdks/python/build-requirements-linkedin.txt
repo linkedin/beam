@@ -21,9 +21,7 @@ oauth2client
 mock
 pytz
 protobuf
-grpcio
 pydot
 PyYAML
-PyVCF
 hdfs
 avro-python3

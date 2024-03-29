@@ -27,12 +27,12 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterable
 import org.apache.spark.metrics.sink.Sink;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-
 /** An in-memory {@link Sink} implementation for tests. */
 public class InMemoryMetrics implements Sink {
 
   @SuppressWarnings("initialization.static.field.uninitialized")
   private static WithMetricsSupport extendedMetricsRegistry;
+
   @SuppressWarnings("initialization.static.field.uninitialized")
   private static MetricRegistry internalMetricRegistry;
 
