@@ -971,7 +971,10 @@ public class AvroUtils {
           baseType =
               org.apache.avro.Schema.createUnion(
                   oneOfType.getOneOfSchema().getFields().stream()
-                      .map(x -> getFieldSchema(x.getType(), x.getName(), namespace))
+                      .map(
+                          x ->
+                              getFieldSchema(
+                                  x.getType().withNullable(false), x.getName(), namespace))
                       .collect(Collectors.toList()));
         } else if ("DATE".equals(identifier) || SqlTypes.DATE.getIdentifier().equals(identifier)) {
           baseType = LogicalTypes.date().addToSchema(org.apache.avro.Schema.create(Type.INT));
