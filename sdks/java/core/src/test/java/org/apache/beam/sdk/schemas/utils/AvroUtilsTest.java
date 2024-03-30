@@ -930,4 +930,35 @@ public class AvroUtilsTest {
       return base;
     }
   }
+
+  private static final String UNION_SCHEMA =
+      "{"
+          + "\"name\" : \"test\","
+          + "\"type\" : \"record\","
+          + "\"fields\" : ["
+          + "{\"name\" : \"Entity\","
+          + " \"type\" : ["
+          + " {\"type\" : \"record\","
+          + "  \"name\" : \"MemberClient\","
+          + "  \"fields\" : ["
+          + "   {\"name\" : \"member\","
+          + "    \"type\" : \"string\"}]"
+          + " },"
+          + " {\"type\" : \"record\","
+          + "  \"name\" : \"OrganizationClient\","
+          + "  \"fields\" : ["
+          + "    {\"name\" : \"organization\","
+          + "     \"type\" : \"string\"},"
+          + "    {\"name\" : \"displayName\","
+          + "     \"type\" : [ \"null\", \"string\" ]}]"
+          + " }]}"
+          + "]}";
+
+  @Test
+  public void testUnion() {
+    org.apache.avro.Schema schema = org.apache.avro.Schema.parse(UNION_SCHEMA);
+    Schema beamSchema = AvroUtils.toBeamSchema(schema);
+    org.apache.avro.Schema convertedSchema = AvroUtils.toAvroSchema(beamSchema);
+    assertEquals(Type.UNION, convertedSchema.getField("Entity").schema().getType());
+  }
 }
