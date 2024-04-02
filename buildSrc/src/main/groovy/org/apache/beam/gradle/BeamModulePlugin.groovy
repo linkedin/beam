@@ -1827,8 +1827,7 @@ class BeamModulePlugin implements Plugin<Project> {
                     configuration: (configuration.shadowClosure ? 'shadow' : 'implementation'), scope: 'compile')
                 generateDependenciesFromConfiguration(configuration: 'provided', scope: 'provided')
 
-                // LinkedIn: skip boms in snapshot build in pom.xml so it can be used in MP local deployment
-                if (!boms.isEmpty() && !(isLinkedin(project) && isSnapshot(project))) {
+                if (!boms.isEmpty()) {
                   def dependencyManagementNode = root.appendNode('dependencyManagement')
                   def dependencyManagementDependencies = dependencyManagementNode.appendNode('dependencies')
 

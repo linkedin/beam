@@ -227,11 +227,6 @@ public class PipelineOptionsFactory {
     private final boolean strictParsing;
     private final boolean isCli;
 
-    private static final ThreadLocal<Boolean> USE_RUNNER_FACTORY =
-        ThreadLocal.withInitial(() -> Boolean.TRUE);
-    private static final RunnerPipelineOptionsFactory RUNNER_PIPELINE_OPTIONS_FACTORY =
-        RunnerPipelineOptionsFactory.getFactory();
-
     // Do not allow direct instantiation
     private Builder() {
       this(new String[0], false, true, false);
@@ -324,20 +319,6 @@ public class PipelineOptionsFactory {
      * @return An object that implements {@code <T>}.
      */
     public <T extends PipelineOptions> T as(Class<T> klass) {
-      // LinkedIn specific logic to create PipelineOptions from Runner
-      if (USE_RUNNER_FACTORY.get() && RUNNER_PIPELINE_OPTIONS_FACTORY != null) {
-        // RunnerPipelineOptionsFactory should NOT be used recursively
-        USE_RUNNER_FACTORY.set(false);
-
-        T options;
-        try {
-          options = RUNNER_PIPELINE_OPTIONS_FACTORY.getPipelineOptions(args, klass);
-        } finally {
-          USE_RUNNER_FACTORY.set(true);
-        }
-        return options;
-      }
-
       Map<String, Object> initialOptions = Maps.newHashMap();
 
       // Attempt to parse the arguments into the set of initial options to use
