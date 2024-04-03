@@ -54,10 +54,10 @@ public class TestSamzaRunner extends PipelineRunner<PipelineResult> {
       config.put(JOB_NON_LOGGED_STORE_BASE_DIR, storeDir.getAbsolutePath());
       config.put(JOB_JMX_ENABLED, "false");
 
-      if (samzaOptions.getConfigOverride() != null) {
-        config.putAll(samzaOptions.getConfigOverride());
+      if (samzaOptions.getConfigOverride() == null) {
+        samzaOptions.setConfigOverride(new HashMap<>());
       }
-      samzaOptions.setConfigOverride(config);
+      samzaOptions.getConfigOverride().putAll(config);
       return samzaOptions;
     } catch (Exception e) {
       throw new RuntimeException(e);
