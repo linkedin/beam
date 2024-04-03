@@ -104,7 +104,9 @@ public class ConfigBuilder {
       config.putAll(createBundleConfig(options, config));
 
       // remove config overrides before serialization (LISAMZA-15259)
-      options.setConfigOverride(new HashMap<>());
+      if (options.getConfigOverride() != null) {
+        options.getConfigOverride().clear();
+      }
       config.put(
           "beamPipelineOptions",
           Base64Serializer.serializeUnchecked(new SerializablePipelineOptions(options)));
