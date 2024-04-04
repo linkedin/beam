@@ -87,7 +87,7 @@ public class ConfigBuilder {
   }
 
   /** @return built configuration */
-  public Config build() {
+  public Map<String, String> build() {
     try {
       // apply framework configs
       config.putAll(createSystemConfig(options, config));
@@ -111,7 +111,7 @@ public class ConfigBuilder {
 
       validateConfigs(options, config);
 
-      return new MapConfig(config);
+      return new HashMap<>(config);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

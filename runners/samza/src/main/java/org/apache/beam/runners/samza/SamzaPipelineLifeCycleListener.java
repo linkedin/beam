@@ -17,13 +17,13 @@
  */
 package org.apache.beam.runners.samza;
 
-import org.apache.samza.config.Config;
+import java.util.Map;
 import org.apache.samza.context.ExternalContext;
 
 /** Life cycle listener for a Samza pipeline during runtime. */
 public interface SamzaPipelineLifeCycleListener {
   /** Callback when the pipeline options is created. */
-  void onInit(Config config, SamzaPipelineOptions options);
+  void onInit(Map<String, String> config, SamzaPipelineOptions options);
 
   /** Callback when the pipeline is started. */
   ExternalContext onStart();

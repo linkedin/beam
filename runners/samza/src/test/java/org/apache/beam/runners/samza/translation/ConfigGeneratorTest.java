@@ -44,7 +44,6 @@ import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TypeDescriptors;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Maps;
-import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.JobCoordinatorConfig;
 import org.apache.samza.config.TaskConfig;
@@ -81,7 +80,7 @@ public class ConfigGeneratorTest {
     final ConfigContext configCtx = new ConfigContext(idMap, nonUniqueStateIds, options);
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config = configBuilder.build();
+    final Map<String, String> config = configBuilder.build();
 
     assertEquals(
         RocksDbKeyValueStorageEngineFactory.class.getName(),
@@ -92,7 +91,7 @@ public class ConfigGeneratorTest {
 
     options.setStateDurable(true);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config2 = configBuilder.build();
+    final Map<String, String> config2 = configBuilder.build();
     assertEquals(
         "TestStoreConfig-1-beamStore-changelog", config2.get("stores.beamStore.changelog"));
   }
@@ -113,7 +112,7 @@ public class ConfigGeneratorTest {
     final ConfigContext configCtx = new ConfigContext(idMap, nonUniqueStateIds, options);
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config = configBuilder.build();
+    final Map<String, String> config = configBuilder.build();
 
     assertEquals(
         InMemoryKeyValueStorageEngineFactory.class.getName(),
@@ -124,7 +123,7 @@ public class ConfigGeneratorTest {
 
     options.setStateDurable(true);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config2 = configBuilder.build();
+    final Map<String, String> config2 = configBuilder.build();
     // For stateless jobs, ignore state durable pipeline option.
     assertNull(config2.get("stores.beamStore.changelog"));
   }
@@ -146,7 +145,7 @@ public class ConfigGeneratorTest {
     final ConfigContext configCtx = new ConfigContext(idMap, nonUniqueStateIds, options);
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config = configBuilder.build();
+    final Map<String, String> config = configBuilder.build();
 
     assertTrue(
         Maps.difference(config, ConfigBuilder.localRunConfig()).entriesOnlyOnRight().isEmpty());
@@ -177,7 +176,7 @@ public class ConfigGeneratorTest {
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
     try {
-      Config config = configBuilder.build();
+      final Map<String, String> config = configBuilder.build();
       assertEquals(config.get(APP_RUNNER_CLASS), RemoteApplicationRunner.class.getName());
       assertEquals(config.get(JOB_FACTORY_CLASS), YarnJobFactory.class.getName());
     } catch (IllegalArgumentException e) {
@@ -209,7 +208,7 @@ public class ConfigGeneratorTest {
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
     try {
-      Config config = configBuilder.build();
+      final Map<String, String> config = configBuilder.build();
       assertEquals(config.get(APP_RUNNER_CLASS), LocalApplicationRunner.class.getName());
       assertEquals(
           config.get(JobCoordinatorConfig.JOB_COORDINATOR_FACTORY),
@@ -252,7 +251,7 @@ public class ConfigGeneratorTest {
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
 
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config = configBuilder.build();
+    final Map<String, String> config = configBuilder.build();
 
     assertEquals(
         RocksDbKeyValueStorageEngineFactory.class.getName(),
@@ -263,7 +262,7 @@ public class ConfigGeneratorTest {
 
     options.setStateDurable(true);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config2 = configBuilder.build();
+    final Map<String, String> config2 = configBuilder.build();
     assertEquals(
         "TestStoreConfig-1-testState-changelog", config2.get("stores.testState.changelog"));
   }
@@ -312,7 +311,7 @@ public class ConfigGeneratorTest {
     final ConfigContext configCtx = new ConfigContext(idMap, nonUniqueStateIds, options);
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config = configBuilder.build();
+    final Map<String, String> config = configBuilder.build();
 
     assertEquals(
         RocksDbKeyValueStorageEngineFactory.class.getName(),
@@ -330,7 +329,7 @@ public class ConfigGeneratorTest {
 
     options.setStateDurable(true);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config2 = configBuilder.build();
+    final Map<String, String> config2 = configBuilder.build();
     assertEquals(
         "TestStoreConfig-1-testState-First_stateful_ParDo-changelog",
         config2.get("stores.testState-First_stateful_ParDo.changelog"));
@@ -384,7 +383,7 @@ public class ConfigGeneratorTest {
 
     final ConfigBuilder configBuilder = new ConfigBuilder(options);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config = configBuilder.build();
+    final Map<String, String> config = configBuilder.build();
 
     assertEquals(
         RocksDbKeyValueStorageEngineFactory.class.getName(),
@@ -406,7 +405,7 @@ public class ConfigGeneratorTest {
 
     options.setStateDurable(true);
     SamzaPipelineTranslator.createConfig(pipeline, configCtx, configBuilder);
-    final Config config2 = configBuilder.build();
+    final Map<String, String> config2 = configBuilder.build();
     assertEquals(
         "TestStoreConfig-1-testState-Same_stateful_ParDo_Name-changelog",
         config2.get("stores.testState-Same_stateful_ParDo_Name.changelog"));
