@@ -49,6 +49,7 @@ import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterators;
 import org.apache.samza.application.StreamApplication;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.MapConfig;
 import org.apache.samza.context.ExternalContext;
 import org.apache.samza.metrics.MetricsReporter;
 import org.apache.samza.metrics.MetricsReporterFactory;
@@ -99,12 +100,13 @@ public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
     configBuilder.put(BEAM_PIPELINE_PROTO, Base64Serializer.serializeUnchecked(pipeline));
     configBuilder.put(BEAM_JOB_INFO, Base64Serializer.serializeUnchecked(jobInfo));
 
-    final Config config = configBuilder.build();
-    options.setConfigOverride(config);
-
+    final Map<String, String> config = configBuilder.build();
     if (listener != null) {
       listener.onInit(config, options);
     }
+
+    final Config samzaConfig = new MapConfig(config);
+    options.setConfigOverride(samzaConfig);
 
     final SamzaExecutionContext executionContext = new SamzaExecutionContext(options);
     final Map<String, MetricsReporterFactory> reporterFactories = getMetricsReporters();
@@ -117,8 +119,8 @@ public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
               pipeline, new PortableTranslationContext(appDescriptor, options, jobInfo));
         };
 
-    ApplicationRunner runner = runSamzaApp(app, config);
-    return new SamzaPortablePipelineResult(app, runner, executionContext, listener, config);
+    ApplicationRunner runner = runSamzaApp(app, samzaConfig);
+    return new SamzaPortablePipelineResult(app, runner, executionContext, listener, samzaConfig);
   }
 
   @Override
@@ -153,12 +155,13 @@ public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
     configBuilder.put(BEAM_DOT_GRAPH, dotGraph);
     configBuilder.put(BEAM_JSON_GRAPH, jsonGraph);
 
-    final Config config = configBuilder.build();
-    options.setConfigOverride(config);
-
+    final Map<String, String> config = configBuilder.build();
     if (listener != null) {
       listener.onInit(config, options);
     }
+
+    final Config samzaConfig = new MapConfig(config);
+    options.setConfigOverride(samzaConfig);
 
     final SamzaExecutionContext executionContext = new SamzaExecutionContext(options);
     final Map<String, MetricsReporterFactory> reporterFactories = getMetricsReporters();
@@ -175,8 +178,8 @@ public class SamzaRunner extends PipelineRunner<SamzaPipelineResult> {
     // perform a final round of validation for the pipeline options now that all configs are
     // generated
     SamzaPipelineOptionsValidator.validate(options);
-    ApplicationRunner runner = runSamzaApp(app, config);
-    return new SamzaPipelineResult(runner, executionContext, listener, config);
+    ApplicationRunner runner = runSamzaApp(app, samzaConfig);
+    return new SamzaPipelineResult(runner, executionContext, listener, samzaConfig);
   }
 
   private Map<String, MetricsReporterFactory> getMetricsReporters() {
