@@ -123,8 +123,6 @@ public abstract class FlinkSourceReaderBase<T, OutputT>
     this.idleTimeoutFuture = new CompletableFuture<>();
     this.waitingForSplitChangeFuture = new CompletableFuture<>();
     this.idleTimeoutCountingDown = false;
-    // TODO: Remove the casting and use SourceReaderMetricGroup after minimum FLink version is
-    // upgraded to 1.14 and above.
     this.numRecordsInCounter = FlinkSourceCompat.getNumRecordsInCounter(context);
   }
 
