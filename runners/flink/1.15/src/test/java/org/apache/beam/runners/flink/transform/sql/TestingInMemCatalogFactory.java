@@ -41,7 +41,11 @@ public class TestingInMemCatalogFactory implements CatalogFactory {
           true);
       catalog.createTable(
           new ObjectPath("TestDatabase", "OrdersVerify"),
-          getOrdersVerifyCatalogTable(),
+          getOrdersVerifyCatalogTable("Orders"),
+          true);
+      catalog.createTable(
+          new ObjectPath("TestDatabase", "OrdersVerifyWithModifiedBuyerNames"),
+          getOrdersVerifyCatalogTable("OrdersWithConvertedBuyerNames"),
           true);
     } catch (TableAlreadyExistException | DatabaseNotExistException e) {
       throw new RuntimeException(e);

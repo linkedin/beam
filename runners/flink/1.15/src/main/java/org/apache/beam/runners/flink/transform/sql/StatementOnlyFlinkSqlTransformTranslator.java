@@ -48,6 +48,9 @@ public class StatementOnlyFlinkSqlTransformTranslator
 
     StreamTableEnvironment tEnv = StreamTableEnvironment.create(context.getExecutionEnvironment());
     sqlTransform.getCatalogs().forEach(tEnv::registerCatalog);
+    sqlTransform.getFunctionClasses().forEach(tEnv::createTemporarySystemFunction);
+    sqlTransform.getFunctionInstances().forEach(tEnv::createTemporarySystemFunction);
+    
     StringJoiner combinedStatements = new StringJoiner("\n\n");
     StreamStatementSet ss = tEnv.createStatementSet();
     for (String statement : sqlTransform.getStatements()) {

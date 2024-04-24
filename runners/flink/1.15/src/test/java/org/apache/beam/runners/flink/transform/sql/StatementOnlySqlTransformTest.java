@@ -90,6 +90,25 @@ public class StatementOnlySqlTransformTest {
     pipeline.run(getPipelineOptions());
   }
 
+  @Test
+  public void testWithFunction() {
+    SerializableCatalog catalog = TestingInMemCatalogFactory.getCatalog("TestCatalog");
+    Pipeline pipeline = Pipeline.create();
+
+    StatementOnlySqlTransform transform = SqlTransform.ofStatements();
+    transform
+        .withCatalog("MyCatalog", catalog)
+        .withFunction("udfViaClass", FlinkSqlTestUtils.ToUpperCaseAndReplaceString.class)
+        .withFunction("udfViaInstance", new FlinkSqlTestUtils.ToUpperCaseAndReplaceString())
+        .addStatement("INSERT INTO MyCatalog.TestDatabase.OrdersVerifyWithModifiedBuyerNames "
+            + "SELECT orderNumber, product, amount, price, udfViaClass(buyer), orderTime FROM MyCatalog.TestDatabase.Orders")
+        .addStatement("INSERT INTO MyCatalog.TestDatabase.OrdersVerifyWithModifiedBuyerNames "
+            + "SELECT orderNumber, product, amount, price, udfViaInstance(buyer), orderTime FROM MyCatalog.TestDatabase.Orders");
+
+    pipeline.apply(transform);
+    pipeline.run(getPipelineOptions());
+  }
+
   // ----------------
   private void testBasics(boolean isStreaming) {
     SerializableCatalog catalog = TestingInMemCatalogFactory.getCatalog("TestCatalog");
