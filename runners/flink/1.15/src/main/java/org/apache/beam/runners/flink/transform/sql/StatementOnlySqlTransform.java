@@ -28,6 +28,7 @@ import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PDone;
 import org.apache.flink.table.catalog.Catalog;
+import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.util.Preconditions;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
@@ -41,10 +42,14 @@ public class StatementOnlySqlTransform extends PTransform<PBegin, PDone> {
 
   private final List<String> statements;
   private final Map<String, SerializableCatalog> catalogs;
+  private final Map<String, UserDefinedFunction> functionInstances;
+  private final Map<String, Class<? extends UserDefinedFunction>> functionClasses;
 
   StatementOnlySqlTransform() {
     this.statements = new ArrayList<>();
     this.catalogs = new HashMap<>();
+    this.functionInstances = new HashMap<>();
+    this.functionClasses = new HashMap<>();
   }
 
   @Override
@@ -87,6 +92,36 @@ public class StatementOnlySqlTransform extends PTransform<PBegin, PDone> {
     return this;
   }
 
+  /**
+   * Register a temporary user defined function for this SQL transform. The function will be
+   * registered as a <i>System Function</i> which means it will temporarily override other functions
+   * with the same name, if such function exists.
+   *
+   * @param name the name of the function.
+   * @param functionClass the class of the user defined function.
+   * @return this {@link StatementOnlySqlTransform} itself.
+   */
+  public StatementOnlySqlTransform withFunction(
+      String name, Class<? extends UserDefinedFunction> functionClass) {
+    functionClasses.put(name, functionClass);
+    return this;
+  }
+
+  /**
+   * Register a temporary user defined function for this SQL transform. The function will be
+   * registered as a <i>System Function</i> which means it will temporarily override other functions
+   * with the same name, if such function exists.
+   *
+   * @param name the name of the function.
+   * @param functionInstance the user defined function instance.
+   * @return this {@link StatementOnlySqlTransform} itself.
+   */
+  public StatementOnlySqlTransform withFunction(
+      String name, UserDefinedFunction functionInstance) {
+    functionInstances.put(name, functionInstance);
+    return this;
+  }
+
   // --------------------- package private getters -----------------
   List<String> getStatements() {
     return Collections.unmodifiableList(statements);
@@ -94,6 +129,14 @@ public class StatementOnlySqlTransform extends PTransform<PBegin, PDone> {
 
   Map<String, SerializableCatalog> getCatalogs() {
     return Collections.unmodifiableMap(catalogs);
+  }
+
+  Map<String, UserDefinedFunction> getFunctionInstances() {
+    return functionInstances;
+  }
+
+  Map<String, Class<? extends UserDefinedFunction>> getFunctionClasses() {
+    return functionClasses;
   }
 
   // --------------------- private helpers ------------------------

@@ -167,13 +167,13 @@ public class FlinkSqlTestUtils {
     return new ResolvedCatalogTable(origin, resolvedSchema);
   }
 
-  public static CatalogTable getOrdersVerifyCatalogTable() {
+  public static CatalogTable getOrdersVerifyCatalogTable(String verificationFile) {
     // Create schema
     ResolvedSchema resolvedSchema = getOrdersSchema();
 
     Map<String, String> connectorOptions = new HashMap<>();
     connectorOptions.put(FactoryUtil.CONNECTOR.key(), VerifyingTableSinkFactory.IDENTIFIER);
-    connectorOptions.put(VerifyingTableSinkFactory.EXPECTED_RESULT_FILE_PATH_OPTION.key(), getFilePath("Orders"));
+    connectorOptions.put(VerifyingTableSinkFactory.EXPECTED_RESULT_FILE_PATH_OPTION.key(), getFilePath(verificationFile));
     connectorOptions.put(VerifyingTableSinkFactory.HAS_HEADER_OPTION.key(), "true");
 
     final CatalogTable origin =
