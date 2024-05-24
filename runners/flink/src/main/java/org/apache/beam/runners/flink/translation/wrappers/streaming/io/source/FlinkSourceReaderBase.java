@@ -41,7 +41,6 @@ import javax.annotation.Nullable;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainerWithoutAccumulator;
 import org.apache.beam.runners.flink.metrics.ReaderInvocationUtil;
-import org.apache.beam.runners.flink.translation.wrappers.streaming.io.source.compat.FlinkSourceCompat;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.io.Source;
@@ -129,7 +128,7 @@ public abstract class FlinkSourceReaderBase<T, OutputT>
     this.idleTimeoutFuture = new CompletableFuture<>();
     this.waitingForSplitChangeFuture = new CompletableFuture<>();
     this.idleTimeoutCountingDown = false;
-    this.numRecordsInCounter = FlinkSourceCompat.getNumRecordsInCounter(context);
+    this.numRecordsInCounter = context.metricGroup().getIOMetricGroup().getNumRecordsInCounter();
     FlinkMetricContainerWithoutAccumulator metricsContainer =
         new FlinkMetricContainerWithoutAccumulator(context.metricGroup());
     this.invocationUtil = new ReaderInvocationUtil<>(stepName, pipelineOptions, metricsContainer);

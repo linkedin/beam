@@ -42,7 +42,6 @@ import java.util.stream.LongStream;
 import org.apache.beam.runners.core.construction.UnboundedReadFromBoundedSource;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
-import org.apache.beam.runners.flink.metrics.MetricGroupWrapper;
 import org.apache.beam.runners.flink.streaming.StreamSources;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
@@ -58,6 +57,7 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Joiner;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
+import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.operators.StreamSource;
@@ -710,7 +710,7 @@ public class UnboundedSourceWrapperTest {
       when(runtimeContextMock.getProcessingTimeService()).thenReturn(processingTimeService);
 
       when(runtimeContextMock.getMetricGroup())
-          .thenReturn(MetricGroupWrapper.createUnregisteredMetricGroup());
+          .thenReturn(UnregisteredMetricGroups.createUnregisteredOperatorMetricGroup());
 
       sourceWrapper.setRuntimeContext(runtimeContextMock);
 
