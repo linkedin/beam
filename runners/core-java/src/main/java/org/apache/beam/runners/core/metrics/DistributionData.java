@@ -36,7 +36,6 @@ import org.apache.datasketches.quantiles.DoublesUnionBuilder;
 import org.apache.datasketches.quantiles.UpdateDoublesSketch;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-
 /**
  * Data describing the the distribution. This should retain enough detail that it can be combined
  * with other {@link DistributionData}.
