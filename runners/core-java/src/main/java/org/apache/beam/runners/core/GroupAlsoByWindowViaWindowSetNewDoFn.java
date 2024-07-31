@@ -68,6 +68,7 @@ public class GroupAlsoByWindowViaWindowSetNewDoFn<
   private transient SideInputReader sideInputReader;
   private transient DoFnRunners.OutputManager outputManager;
   private TupleTag<KV<K, OutputT>> mainTag;
+  private ExecutableTriggerStateMachine triggerStateMachine;
 
   public GroupAlsoByWindowViaWindowSetNewDoFn(
       WindowingStrategy<?, W> windowingStrategy,
@@ -86,6 +87,10 @@ public class GroupAlsoByWindowViaWindowSetNewDoFn<
     this.windowingStrategy = noWildcard;
     this.reduceFn = reduceFn;
     this.stateInternalsFactory = stateInternalsFactory;
+    this.triggerStateMachine =
+        ExecutableTriggerStateMachine.create(
+            TriggerStateMachines.stateMachineForTrigger(
+                TriggerTranslation.toProto(windowingStrategy.getTrigger())));
   }
 
   private OutputWindowedValue<KV<K, OutputT>> outputWindowedValue() {
@@ -123,9 +128,7 @@ public class GroupAlsoByWindowViaWindowSetNewDoFn<
         new ReduceFnRunner<>(
             key,
             windowingStrategy,
-            ExecutableTriggerStateMachine.create(
-                TriggerStateMachines.stateMachineForTrigger(
-                    TriggerTranslation.toProto(windowingStrategy.getTrigger()))),
+            triggerStateMachine,
             stateInternals,
             timerInternals,
             outputWindowedValue(),
