@@ -17,13 +17,15 @@
  */
 package org.apache.beam.sdk.metrics;
 
-import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument;
-
 import com.google.auto.value.AutoValue;
+import com.google.auto.value.extension.memoized.Memoized;
 import java.io.Serializable;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Strings;
+
+import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.*;
+
 
 /**
  * The name of a metric consists of a {@link #getNamespace} and a {@link #getName}. The {@link
@@ -42,6 +44,7 @@ public abstract class MetricName implements Serializable {
   public abstract String getName();
 
   @Override
+  @Memoized
   public String toString() {
     return getNamespace() + ":" + getName();
   }
