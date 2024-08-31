@@ -18,6 +18,7 @@
 package org.apache.beam.sdk.metrics;
 
 import com.google.auto.value.AutoValue;
+import com.google.auto.value.extension.memoized.Memoized;
 import java.io.Serializable;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
@@ -35,7 +36,8 @@ public abstract class MetricKey implements Serializable {
   public abstract MetricName metricName();
 
   @Override
-  public final String toString() {
+  @Memoized
+  public String toString() {
     return stepName() + ":" + metricName();
   }
 
