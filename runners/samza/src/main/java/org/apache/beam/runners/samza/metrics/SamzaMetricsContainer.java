@@ -20,7 +20,13 @@ package org.apache.beam.runners.samza.metrics;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.beam.runners.core.metrics.DefaultMetricResults;
 import org.apache.beam.runners.core.metrics.DistributionData;
@@ -34,6 +40,7 @@ import org.apache.beam.sdk.metrics.MetricQueryResults;
 import org.apache.beam.sdk.metrics.MetricResult;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.metrics.MetricsContainer;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.samza.config.Config;
 import org.apache.samza.metrics.Counter;
 import org.apache.samza.metrics.Gauge;
@@ -50,27 +57,64 @@ import org.slf4j.LoggerFactory;
   "nullness" // TODO(https://github.com/apache/beam/issues/20497)
 })
 public class SamzaMetricsContainer {
-
   private static final Logger LOG = LoggerFactory.getLogger(SamzaMetricsContainer.class);
   private static final String BEAM_METRICS_GROUP = "BeamMetrics";
-  // global metrics container is the default container that can be used in user threads
   public static final String GLOBAL_CONTAINER_STEP_NAME = "GLOBAL_METRICS";
   public static final String USE_SHORT_METRIC_NAMES_CONFIG =
       "beam.samza.metrics.useShortMetricNames";
   public static final String COMMIT_ALL_METRIC_UPDATES =
       "beam.samza.metrics.commitAllMetricUpdates";
-
+  public static final String DEFER_TO_EXECUTOR_CONFIG = "beam.samza.metrics.deferToExecutor";
+  public static final String DEFER_TO_EXECUTOR_UPDATE_INTERVAL_SEC_CONFIG =
+      "beam.samza.metrics.deferToExecutor.updateIntervalSec";
   private final MetricsContainerStepMap metricsContainers = new MetricsContainerStepMap();
   private final MetricsRegistryMap metricsRegistry;
   private final boolean useShortMetricNames;
   private final boolean commitAllMetricUpdates;
+  private final boolean deferToExecutor;
+  private final Set<String> activeStepNames = ConcurrentHashMap.newKeySet();
+  private ScheduledExecutorService scheduler;
+  private ScheduledFuture<?> scheduledFuture;
+  // Static AtomicInteger to ensure thread-safe incrementing of instance IDs
+  private static final AtomicInteger instanceCounter = new AtomicInteger(0);
 
   public SamzaMetricsContainer(MetricsRegistryMap metricsRegistry, Config config) {
+    // Assign a unique ID to this instance by incrementing the static counter
+    // Instance-specific ID
+    int instanceId = getInstanceId();
     this.metricsRegistry = metricsRegistry;
     this.useShortMetricNames = config.getBoolean(USE_SHORT_METRIC_NAMES_CONFIG, false);
     this.commitAllMetricUpdates = config.getBoolean(COMMIT_ALL_METRIC_UPDATES, false);
+    this.deferToExecutor = config.getBoolean(DEFER_TO_EXECUTOR_CONFIG, false);
+    long metricUpdateIntervalSec = config.getLong(DEFER_TO_EXECUTOR_UPDATE_INTERVAL_SEC_CONFIG, 1L);
     this.metricsRegistry.metrics().put(BEAM_METRICS_GROUP, new ConcurrentHashMap<>());
-    LOG.info("Creating Samza metrics container with userShortMetricName = {}", useShortMetricNames);
+    LOG.info(
+        "Creating Samza metrics container (instanceId={}) with deferToExecutor={}, metricUpdateIntervalSec={}, useShortMetricNames={}, commitAllMetricUpdates={}",
+        instanceId,
+        deferToExecutor,
+        metricUpdateIntervalSec,
+        useShortMetricNames,
+        commitAllMetricUpdates);
+    // Initialize the executor service if needed based on configuration
+    if (deferToExecutor) {
+      scheduler =
+          Executors.newSingleThreadScheduledExecutor(
+              new ThreadFactoryBuilder()
+                  .setDaemon(true)
+                  .setNameFormat("MetricsUpdater-instance-" + instanceId + "-thread-%d")
+                  .build());
+      scheduledFuture =
+          scheduler.scheduleAtFixedRate(
+              this::commitPeriodicMetricsForAllSteps, 0, metricUpdateIntervalSec, TimeUnit.SECONDS);
+      LOG.info("Executor service for instance {} has been started.", instanceId);
+    }
+    // Register a shutdown hook to gracefully shut down the executor service
+    Runtime.getRuntime().addShutdownHook(new Thread(this::shutdownExecutorService));
+  }
+
+  // Static method to return a unique ID for each instance
+  private static int getInstanceId() {
+    return instanceCounter.incrementAndGet();
   }
 
   public MetricsContainer getContainer(String stepName) {
@@ -81,15 +125,96 @@ public class SamzaMetricsContainer {
     return this.metricsContainers;
   }
 
-  /** Update Beam metrics to Samza metrics for the current step and global step. */
+  /**
+   * This is the public method for updating metrics. It either defers the update to the executor
+   * service or updates the metrics immediately based on the deferToExecutor configuration flag.
+   *
+   * @param stepName the step name for which metrics are being updated
+   */
   public void updateMetrics(String stepName) {
+    if (deferToExecutor) {
+      // Add the step name to the active steps set
+      if (activeStepNames.add(stepName)) {
+        LOG.info("Added step '{}' for deferred metrics update.", stepName);
+      }
+    } else {
+      // Update metrics immediately if not deferring to the executor
+      updateMetricsInternal(stepName);
+    }
+  }
 
-    assert metricsRegistry != null;
-    final List<String> stepNameList = Arrays.asList(stepName, GLOBAL_CONTAINER_STEP_NAME);
-    // Since global metrics do not belong to any step, we need to update it in every step.
-    final MetricResults metricResults =
+  /**
+   * Shutdown the executor service and cancel the scheduled task. Before shutting down, update
+   * metrics one last time to ensure completeness.
+   */
+  private void shutdownExecutorService() {
+    if (scheduler != null && !scheduler.isShutdown()) {
+      LOG.info("Shutting down executor service...");
+
+      // Cancel the scheduled task if it's still running.
+      // This ensures that any periodic metrics updates are stopped and no further updates
+      // are scheduled once we begin the shutdown process.
+      if (scheduledFuture != null && !scheduledFuture.isCancelled()) {
+        LOG.info("Cancelling scheduled metrics updates...");
+        scheduledFuture.cancel(true);
+      }
+
+      // Update metrics one last time, ensuring that we're still committing from a single thread.
+      // This guarantees that all remaining metrics are committed before shutting down the executor
+      // service.
+      commitPeriodicMetricsForAllSteps();
+
+      // Shutdown the executor service gracefully.
+      // Allow any currently executing tasks to finish, then terminate the service. If the shutdown
+      // process takes longer than 5 seconds, force a shutdown to ensure the service is stopped.
+      scheduler.shutdown();
+      try {
+        if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+          LOG.warn("Forcing shutdown of executor service...");
+          scheduler.shutdownNow();
+        }
+      } catch (InterruptedException e) {
+        LOG.error("Interrupted during shutdown, forcing shutdown now", e);
+        scheduler.shutdownNow();
+        Thread.currentThread().interrupt();
+      }
+    }
+  }
+
+  /**
+   * Commits metrics updates for all scheduled steps, invoked periodically.
+   *
+   * <p>This method is called periodically by the scheduled executor service when `deferToExecutor`
+   * is set to true, ensuring that metrics for all active steps are updated at the defined interval.
+   * It is also invoked during shutdown to ensure that any remaining metrics are committed before
+   * terminating the executor.
+   *
+   * <p>Synchronization is applied to ensure thread-safe updates when multiple instances might share
+   * the same resources.
+   */
+  private void commitPeriodicMetricsForAllSteps() {
+    synchronized (SamzaMetricsContainer.class) {
+      activeStepNames.forEach(this::updateMetricsInternal);
+    }
+  }
+
+  /**
+   * Updates metrics for a given step.
+   *
+   * <p>This method contains the core logic for updating metrics, including counters, gauges, and
+   * distributions for the specified step. It can be called either immediately or by the scheduled
+   * executor service, based on the `deferToExecutor` configuration.
+   *
+   * <p>This method assumes that it is called in a thread-safe manner, as it does not implement
+   * synchronization internally.
+   *
+   * @param stepName the step name for which metrics are being updated
+   */
+  private void updateMetricsInternal(String stepName) {
+    List<String> stepNameList = Arrays.asList(stepName, GLOBAL_CONTAINER_STEP_NAME);
+    MetricResults metricResults =
         asAttemptedOnlyMetricResultsForSteps(metricsContainers, stepNameList);
-    final MetricQueryResults results = metricResults.allMetrics();
+    MetricQueryResults results = metricResults.allMetrics();
 
     final CounterUpdater updateCounter = new CounterUpdater();
     results.getCounters().forEach(updateCounter);
@@ -99,6 +224,7 @@ public class SamzaMetricsContainer {
 
     final DistributionUpdater updateDistribution = new DistributionUpdater();
     results.getDistributions().forEach(updateDistribution);
+
     if (commitAllMetricUpdates) {
       stepNameList.stream()
           .map(metricsContainers::getContainer)
