@@ -21,6 +21,7 @@ import static org.apache.flink.streaming.api.environment.StreamExecutionEnvironm
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.beam.sdk.util.InstanceBuilder;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.MoreObjects;
@@ -77,7 +78,7 @@ public class FlinkExecutionEnvironments {
 
     // Although Flink uses Rest, it expects the address not to contain a http scheme
     String flinkMasterHostPort = stripHttpSchema(options.getFlinkMaster());
-    Configuration flinkConfiguration = getFlinkConfiguration(confDir);
+    Configuration flinkConfiguration = getFlinkConfiguration(confDir, options.getFlinkConfMap());
     ExecutionEnvironment flinkBatchEnv;
 
     // depending on the master, create the right environment.
@@ -163,7 +164,7 @@ public class FlinkExecutionEnvironments {
 
     // Although Flink uses Rest, it expects the address not to contain a http scheme
     String masterUrl = stripHttpSchema(options.getFlinkMaster());
-    Configuration flinkConfiguration = getFlinkConfiguration(confDir);
+    Configuration flinkConfiguration = getFlinkConfiguration(confDir, options.getFlinkConfMap());
     StreamExecutionEnvironment flinkStreamEnv;
 
     // depending on the master, create the right environment.
@@ -376,10 +377,19 @@ public class FlinkExecutionEnvironments {
     return 1;
   }
 
-  private static Configuration getFlinkConfiguration(@Nullable String flinkConfDir) {
-    return flinkConfDir == null || flinkConfDir.isEmpty()
-        ? GlobalConfiguration.loadConfiguration()
-        : GlobalConfiguration.loadConfiguration(flinkConfDir);
+  private static Configuration getFlinkConfiguration(
+      @Nullable String flinkConfDir, @Nullable Map<String, String> flinkConfMap) {
+    Configuration dynamicProperties = null;
+    if (flinkConfMap != null && !flinkConfMap.isEmpty()) {
+      dynamicProperties = Configuration.fromMap(flinkConfMap);
+    }
+    if (flinkConfDir != null && !flinkConfDir.isEmpty()) {
+      return GlobalConfiguration.loadConfiguration(flinkConfDir, dynamicProperties);
+    } else if (dynamicProperties != null) {
+      return GlobalConfiguration.loadConfiguration(dynamicProperties);
+    } else {
+      return GlobalConfiguration.loadConfiguration();
+    }
   }
 
   private static void applyLatencyTrackingInterval(
