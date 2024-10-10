@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.flink;
 
+import java.util.Map;
 import org.apache.beam.sdk.options.ApplicationNameOptions;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
@@ -304,6 +305,11 @@ public interface FlinkPipelineOptions
   Integer getLocalCombineMaxBufferedRecords();
 
   void setFlinkConfDir(String confDir);
+
+  @Description("Map containing Flink configurations")
+  Map<String, String> getFlinkConfMap();
+
+  void setFlinkConfMap(Map<String, String> flinkConfMap);
 
   static FlinkPipelineOptions defaults() {
     return PipelineOptionsFactory.as(FlinkPipelineOptions.class);
