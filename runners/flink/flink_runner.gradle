@@ -211,6 +211,7 @@ dependencies {
 
   implementation "org.apache.flink:flink-runtime:$flink_version"
   implementation "org.apache.flink:flink-metrics-core:$flink_version"
+  implementation "org.apache.flink:flink-optimizer:$flink_version"
   testImplementation "org.apache.flink:flink-runtime:$flink_version:tests"
   testImplementation "org.apache.flink:flink-rpc-akka:$flink_version"
   testImplementation project(path: ":sdks:java:core", configuration: "shadowTest")
