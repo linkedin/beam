@@ -35,10 +35,7 @@ public class TestingInMemCatalogFactory implements CatalogFactory {
   public static TestingInMemCatalog getCatalog(String name) {
     TestingInMemCatalog catalog = new TestingInMemCatalog(name, DEFAULT_DATABASE_NAME);
     try {
-      catalog.createTable(
-          new ObjectPath("TestDatabase", "Orders"),
-          getOrdersCatalogTable(),
-          true);
+      catalog.createTable(new ObjectPath("TestDatabase", "Orders"), getOrdersCatalogTable(), true);
       catalog.createTable(
           new ObjectPath("TestDatabase", "OrdersVerify"),
           getOrdersVerifyCatalogTable("Orders"),
