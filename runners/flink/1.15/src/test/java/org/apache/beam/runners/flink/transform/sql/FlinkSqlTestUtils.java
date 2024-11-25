@@ -78,17 +78,18 @@ public class FlinkSqlTestUtils {
           getFilePath("Orders"));
 
   public static final String ORDERS_VERIFYING_SINK_2_DDL =
-      String.format("CREATE TABLE OrdersVerify2 (\n"
-          + "    orderNumber  BIGINT,\n"
-          + "    product      String,\n"
-          + "    amount       INT,\n"
-          + "    price        DECIMAL(8, 2),\n"
-          + "    buyer        STRING,\n"
-          + "    orderTime    TIMESTAMP(3)\n"
-          + ") WITH (\n"
-          + "  'connector' = '%s',\n"
-          + "  '%s' = '%s'\n"
-          + ")",
+      String.format(
+          "CREATE TABLE OrdersVerify2 (\n"
+              + "    orderNumber  BIGINT,\n"
+              + "    product      String,\n"
+              + "    amount       INT,\n"
+              + "    price        DECIMAL(8, 2),\n"
+              + "    buyer        STRING,\n"
+              + "    orderTime    TIMESTAMP(3)\n"
+              + ") WITH (\n"
+              + "  'connector' = '%s',\n"
+              + "  '%s' = '%s'\n"
+              + ")",
           VerifyingTableSinkFactory.IDENTIFIER,
           VerifyingTableSinkFactory.EXPECTED_RESULT_FILE_PATH_OPTION.key(),
           getFilePath("Orders"));
@@ -173,7 +174,9 @@ public class FlinkSqlTestUtils {
 
     Map<String, String> connectorOptions = new HashMap<>();
     connectorOptions.put(FactoryUtil.CONNECTOR.key(), VerifyingTableSinkFactory.IDENTIFIER);
-    connectorOptions.put(VerifyingTableSinkFactory.EXPECTED_RESULT_FILE_PATH_OPTION.key(), getFilePath(verificationFile));
+    connectorOptions.put(
+        VerifyingTableSinkFactory.EXPECTED_RESULT_FILE_PATH_OPTION.key(),
+        getFilePath(verificationFile));
     connectorOptions.put(VerifyingTableSinkFactory.HAS_HEADER_OPTION.key(), "true");
 
     final CatalogTable origin =
