@@ -33,6 +33,7 @@ dependencies {
   implementation project(":runners:samza")
   implementation project(":runners:flink:1.15")
   implementation project(":runners:flink:1.16")
+  implementation project(":runners:flink:1.18")
   implementation project(":runners:spark:2")
   implementation project(":runners:spark:3")
   implementation project(":runners:portability:java")
