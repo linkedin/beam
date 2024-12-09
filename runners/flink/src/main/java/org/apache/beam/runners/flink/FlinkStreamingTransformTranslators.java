@@ -1003,14 +1003,8 @@ class FlinkStreamingTransformTranslators {
               inputKvCoder.getKeyCoder(),
               new SerializablePipelineOptions(context.getPipelineOptions()));
 
-      KeyedStream<WindowedValue<KeyedWorkItem<K, byte[]>>, ByteBuffer> keyedWorkItemStream;
-
-      if (context.getCurrentTransform().getFullName().startsWith("GroupWithoutRepartition")) {
-        // skip reshuffle if the pipeline is explicitly using GroupWithoutRepartition
-        keyedWorkItemStream = DataStreamUtils.reinterpretAsKeyedStream(workItemStream, keySelector);
-      } else {
-        keyedWorkItemStream = workItemStream.keyBy(keySelector);
-      }
+      KeyedStream<WindowedValue<KeyedWorkItem<K, byte[]>>, ByteBuffer> keyedWorkItemStream =
+          workItemStream.keyBy(keySelector);
 
       SystemReduceFn<K, byte[], Iterable<byte[]>, Iterable<byte[]>, BoundedWindow> reduceFn =
           SystemReduceFn.buffering(ByteArrayCoder.of());
