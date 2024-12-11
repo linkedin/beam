@@ -15,9 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.runners.samza.transforms;
+package org.apache.beam.sdk.transforms;
 
-import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.join.KeyedPCollectionTuple;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PInput;
@@ -26,11 +25,12 @@ import org.apache.beam.sdk.values.POutput;
 /**
  * A wrapper transform of {@link org.apache.beam.sdk.transforms.GroupByKey} or {@link
  * org.apache.beam.sdk.transforms.join.CoGroupByKey} to indicate there is no repartition needed for
- * Samza runner. For example:
+ * Flink runner. For example:
  *
  * <p>input.apply(GroupWithoutRepartition.of(Count.perKey()));
  *
- * @deprecated use {@link org.apache.beam.sdk.transforms.GroupWithoutRepartition} instead.
+ * @deprecated this transform's sole purposes is to maintain backward compatibility
+ * for existing LinkedIn internal use cases. Do not use this class for new development.
  */
 @Deprecated
 public class GroupWithoutRepartition<InputT extends PInput, OutputT extends POutput>
@@ -38,7 +38,7 @@ public class GroupWithoutRepartition<InputT extends PInput, OutputT extends POut
   private final PTransform<InputT, OutputT> transform;
 
   public static <InputT extends PInput, OutputT extends POutput>
-      GroupWithoutRepartition<InputT, OutputT> of(PTransform<InputT, OutputT> transform) {
+  GroupWithoutRepartition<InputT, OutputT> of(PTransform<InputT, OutputT> transform) {
     return new GroupWithoutRepartition<>(transform);
   }
 

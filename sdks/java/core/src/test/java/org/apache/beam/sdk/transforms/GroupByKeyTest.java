@@ -148,6 +148,38 @@ public class GroupByKeyTest implements Serializable {
 
     @Test
     @Category(ValidatesRunner.class)
+    public void testGroupWithoutRepartition() {
+      List<KV<String, Integer>> ungroupedPairs =
+          Arrays.asList(
+              KV.of("k1", 3),
+              KV.of("k5", Integer.MAX_VALUE),
+              KV.of("k5", Integer.MIN_VALUE),
+              KV.of("k2", 66),
+              KV.of("k1", 4),
+              KV.of("k2", -33),
+              KV.of("k3", 0));
+
+      PCollection<KV<String, Integer>> input =
+          p.apply(
+              Create.of(ungroupedPairs)
+                  .withCoder(KvCoder.of(StringUtf8Coder.of(), BigEndianIntegerCoder.of())));
+
+      PCollection<KV<String, Iterable<Integer>>> output = input.apply(GroupWithoutRepartition.of(GroupByKey.create()));
+
+      SerializableFunction<Iterable<KV<String, Iterable<Integer>>>, Void> checker =
+          containsKvs(
+              kv("k1", 3, 4),
+              kv("k5", Integer.MIN_VALUE, Integer.MAX_VALUE),
+              kv("k2", 66, -33),
+              kv("k3", 0));
+      PAssert.that(output).satisfies(checker);
+      PAssert.that(output).inWindow(GlobalWindow.INSTANCE).satisfies(checker);
+
+      p.run();
+    }
+
+    @Test
+    @Category(ValidatesRunner.class)
     public void testGroupByKeyEmpty() {
       List<KV<String, Integer>> ungroupedPairs = Arrays.asList();
 
