@@ -28,7 +28,11 @@ import org.apache.beam.sdk.values.POutput;
  * Flink runner. For example:
  *
  * <p>input.apply(GroupWithoutRepartition.of(Count.perKey()));
+ *
+ * @deprecated this transform's sole purposes is to maintain backward compatibility
+ * for existing LinkedIn internal use cases. Do not use this class for new development.
  */
+@Deprecated
 public class GroupWithoutRepartition<InputT extends PInput, OutputT extends POutput>
     extends PTransform<InputT, OutputT> {
   private final PTransform<InputT, OutputT> transform;
