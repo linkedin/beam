@@ -18,8 +18,12 @@
 package org.apache.beam.sdk.values;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.GroupByKey;
@@ -38,7 +42,7 @@ import org.checkerframework.dataflow.qual.Pure;
  * @param <K> the type of the key
  * @param <V> the type of the value
  */
-public class KV<K, V> implements Serializable {
+public class KV<K, V> implements Serializable, Traceable {
   /** Returns a {@link KV} with the given key and value. */
   public static <K, V> KV<K, V> of(K key, V value) {
     return new KV<>(key, value);
@@ -56,10 +60,22 @@ public class KV<K, V> implements Serializable {
     return value;
   }
 
+  @Override
+  public Map<String, String> getW3cTraceContext() {
+    return w3cTraceContext;
+  }
+
+  @Override
+  public List<Map<String, String>> getW3cLinkedContext() {
+    return w3cLinkedContext;
+  }
+
   /////////////////////////////////////////////////////////////////////////////
 
   final K key;
   final V value;
+  final Map<String, String> w3cTraceContext = new HashMap<>();
+  final List<Map<String, String>> w3cLinkedContext = new ArrayList<>();
 
   private KV(K key, V value) {
     this.key = key;
