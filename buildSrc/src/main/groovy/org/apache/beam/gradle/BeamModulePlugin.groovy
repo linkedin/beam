@@ -46,7 +46,6 @@ import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.testing.jacoco.tasks.JacocoReport
-import groovy.util.logging.Slf4j
 
 import java.net.ServerSocket
 /**
@@ -1529,7 +1528,6 @@ class BeamModulePlugin implements Plugin<Project> {
           //
           // Consider re-enabling if we can get annotations for the generated
           // code and test libraries we use.
-          println("current2 it is: " + it)
           checkerFramework {
             skipCheckerFramework = true
           }
@@ -1665,9 +1663,7 @@ class BeamModulePlugin implements Plugin<Project> {
           it.getProject().toString().contains("examples:")) {
             duplicatesStrategy = 'exclude'
           }
-          project.sourceSets.main.allSource.each {
-            from it
-          }
+          from project.sourceSets.main.allSource
           classifier = 'sources'
         }
         project.artifacts.archives project.sourcesJar
