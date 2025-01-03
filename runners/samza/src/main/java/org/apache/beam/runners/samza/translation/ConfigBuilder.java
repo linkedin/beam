@@ -40,6 +40,7 @@ import org.apache.beam.runners.samza.container.BeamContainerRunner;
 import org.apache.beam.runners.samza.container.BeamJobCoordinatorRunner;
 import org.apache.beam.runners.samza.runtime.SamzaStoreStateInternals;
 import org.apache.beam.runners.samza.util.ConfigUtils;
+import org.apache.beam.sdk.expansion.ExternalConfigRegistrar;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.samza.config.ApplicationConfig;
@@ -174,6 +175,7 @@ public class ConfigBuilder {
     if (options.getConfigOverride() != null) {
       config.putAll(options.getConfigOverride());
     }
+    config.putAll(ExternalConfigRegistrar.getFactory(options));
 
     return config;
   }
