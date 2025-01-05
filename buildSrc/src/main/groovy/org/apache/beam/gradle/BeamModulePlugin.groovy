@@ -1276,6 +1276,8 @@ class BeamModulePlugin implements Plugin<Project> {
           permitTestUnusedDeclared dep
         }
         permitUnusedDeclared "org.checkerframework:checker-qual:$checkerframework_version"
+        permitUnusedDeclared "org.apache.flink:flink-table-api-java-bridge:1.18.0"
+        permitUnusedDeclared "org.apache.flink:flink-table-api-java:1.18.0"
       }
 
       if (configuration.enableStrictDependencies) {
