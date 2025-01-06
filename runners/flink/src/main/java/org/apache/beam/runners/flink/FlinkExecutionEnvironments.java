@@ -378,11 +378,12 @@ public class FlinkExecutionEnvironments {
     return 1;
   }
 
-  private static Configuration getFlinkConfiguration(
+  @VisibleForTesting
+  static Configuration getFlinkConfiguration(
       @Nullable String flinkConfDir, FlinkPipelineOptions flinkPipelineOptions) {
     Configuration dynamicProperties = null;
     final Map<String, String> flinkConfMap = flinkPipelineOptions.getFlinkConfMap();
-    flinkConfMap.putAll(ExternalConfigRegistrar.getFactory(flinkPipelineOptions));
+    flinkConfMap.putAll(ExternalConfigRegistrar.getConfig(flinkPipelineOptions));
     if (!flinkConfMap.isEmpty()) {
       dynamicProperties = Configuration.fromMap(flinkConfMap);
     }

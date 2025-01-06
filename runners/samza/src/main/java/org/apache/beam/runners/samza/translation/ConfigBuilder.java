@@ -175,7 +175,7 @@ public class ConfigBuilder {
     if (options.getConfigOverride() != null) {
       config.putAll(options.getConfigOverride());
     }
-    config.putAll(ExternalConfigRegistrar.getFactory(options));
+    config.putAll(ExternalConfigRegistrar.getConfig(options));
 
     return config;
   }
