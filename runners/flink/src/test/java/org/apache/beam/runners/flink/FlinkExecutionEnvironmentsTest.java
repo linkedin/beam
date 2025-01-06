@@ -508,13 +508,15 @@ public class FlinkExecutionEnvironmentsTest {
   public void testGetFlinkConfigurationWithExternalConfigs() {
     // mock a ExternConfigRegistrar.
     @AutoService(ExternalConfigRegistrar.class)
-    class Config implements ExternalConfigRegistrar{
+    class Config implements ExternalConfigRegistrar {
       @Override
       public Map<String, String> getExternalConfig(PipelineOptions options) {
         // insert flink related configs
-        return new HashMap<String, String>() {{
+        return new HashMap<String, String>() {
+          {
           put("key", "value");
-        }};
+          }
+        };
       }
     }
     FlinkPipelineOptions options = getDefaultPipelineOptions();
@@ -526,9 +528,12 @@ public class FlinkExecutionEnvironmentsTest {
   @Test
   public void testGetFlinkConfigurationWithConfigMap() {
     FlinkPipelineOptions options = getDefaultPipelineOptions();
-    options.setFlinkConfMap(new HashMap<String, String>() {{
-      put("mapKey", "mapValue");
-    }});
+    options.setFlinkConfMap(
+        new HashMap<String, String>() {
+          {
+            put("mapKey", "mapValue");
+          }
+        });
     Configuration configuration = getFlinkConfiguration(null, options);
     assertTrue(configuration.containsKey("mapKey"));
     assertEquals(configuration.getString("mapKey", ""), "mapValue");
