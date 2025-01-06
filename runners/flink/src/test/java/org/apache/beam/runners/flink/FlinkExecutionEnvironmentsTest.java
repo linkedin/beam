@@ -514,7 +514,7 @@ public class FlinkExecutionEnvironmentsTest {
         // insert flink related configs
         return new HashMap<String, String>() {
           {
-          put("key", "value");
+            put("key", "value");
           }
         };
       }
