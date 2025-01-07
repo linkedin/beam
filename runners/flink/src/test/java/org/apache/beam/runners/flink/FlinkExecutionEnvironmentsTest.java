@@ -17,13 +17,15 @@
  */
 package org.apache.beam.runners.flink;
 
-import static org.apache.beam.runners.flink.FlinkExecutionEnvironments.*;
+import static org.apache.beam.runners.flink.FlinkExecutionEnvironments.getFlinkConfiguration;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
-import com.google.auto.service.AutoService;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,9 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
-import org.apache.beam.sdk.expansion.ExternalConfigRegistrar;
-import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.LocalEnvironment;
 import org.apache.flink.api.java.RemoteEnvironment;
@@ -505,38 +505,13 @@ public class FlinkExecutionEnvironmentsTest {
   }
 
   @Test
-  public void testGetFlinkConfigurationWithExternalConfigs() {
-    // mock a ExternConfigRegistrar.
-    @AutoService(ExternalConfigRegistrar.class)
-    class Config implements ExternalConfigRegistrar {
-      @Override
-      public Map<String, String> getExternalConfig(PipelineOptions options) {
-        // insert flink related configs
-        return new HashMap<String, String>() {
-          {
-            put("key", "value");
-          }
-        };
-      }
-    }
-    FlinkPipelineOptions options = getDefaultPipelineOptions();
-    Configuration configuration = getFlinkConfiguration(null, options);
-    assertTrue(configuration.containsKey("key"));
-    assertEquals(configuration.getString("key", ""), "value");
-  }
-
-  @Test
   public void testGetFlinkConfigurationWithConfigMap() {
     FlinkPipelineOptions options = getDefaultPipelineOptions();
     options.setFlinkConfMap(
-        new HashMap<String, String>() {
-          {
-            put("mapKey", "mapValue");
-          }
-        });
+        new HashMap<>(ImmutableMap.<String, String>builder().put("mapKey", "mapValue").build()));
     Configuration configuration = getFlinkConfiguration(null, options);
     assertTrue(configuration.containsKey("mapKey"));
-    assertEquals(configuration.getString("mapKey", ""), "mapValue");
+    assertEquals("mapValue", configuration.getString("mapKey", ""));
   }
 
   private void checkHostAndPort(Object env, String expectedHost, int expectedPort) {
