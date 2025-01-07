@@ -398,7 +398,7 @@ class BeamModulePlugin implements Plugin<Project> {
 
     // Automatically use the official release version if we are performing a release
     // otherwise append '-SNAPSHOT'
-    project.version = '2.45.32'
+    project.version = '2.45.33'
     if (isLinkedin(project)) {
       project.ext.mavenGroupId = 'com.linkedin.beam'
     }
@@ -1276,6 +1276,9 @@ class BeamModulePlugin implements Plugin<Project> {
           permitTestUnusedDeclared dep
         }
         permitUnusedDeclared "org.checkerframework:checker-qual:$checkerframework_version"
+        permitUnusedDeclared "org.apache.flink:flink-table-api-java-bridge:1.18.0"
+        permitUnusedDeclared "org.apache.flink:flink-table-api-java:1.18.0"
+        permitUnusedDeclared "org.apache.flink:flink-table-common:1.18.0"
       }
 
       if (configuration.enableStrictDependencies) {
@@ -1658,12 +1661,20 @@ class BeamModulePlugin implements Plugin<Project> {
         }
 
         project.task('sourcesJar', type: Jar) {
+          if (it.getProject().toString().contains("runners:") ||
+          it.getProject().toString().contains("sdks:java:") ||
+          it.getProject().toString().contains("examples:")) {
+            duplicatesStrategy = 'exclude'
+          }
           from project.sourceSets.main.allSource
           classifier = 'sources'
         }
         project.artifacts.archives project.sourcesJar
 
         project.task('testSourcesJar', type: Jar) {
+          if (it.getProject().toString().contains("runners:")) {
+            duplicatesStrategy = 'exclude'
+          }
           from project.sourceSets.test.allSource
           classifier = 'test-sources'
         }
