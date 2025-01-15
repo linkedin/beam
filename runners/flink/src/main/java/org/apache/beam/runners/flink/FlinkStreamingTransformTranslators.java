@@ -110,6 +110,7 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterable
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Maps;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -954,7 +955,13 @@ class FlinkStreamingTransformTranslators {
       DataStream<WindowedValue<KV<K, InputT>>> inputDataSet =
           context.getInputDataStream(context.getInput(transform));
 
-      context.setOutputDataStream(context.getOutput(transform), inputDataSet.rebalance());
+      DataStream<WindowedValue<KV<K, InputT>>> outputDataset =
+          inputDataSet.partitionCustom(
+              (Partitioner<K>)
+                  (key, numPartitions) -> (key.hashCode() & Integer.MAX_VALUE) % numPartitions,
+              input -> input.getValue().getKey());
+
+      context.setOutputDataStream(context.getOutput(transform), outputDataset);
     }
   }
 
