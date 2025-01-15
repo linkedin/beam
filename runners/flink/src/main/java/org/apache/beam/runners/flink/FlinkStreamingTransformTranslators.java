@@ -956,8 +956,9 @@ class FlinkStreamingTransformTranslators {
           context.getInputDataStream(context.getInput(transform));
 
       DataStream<WindowedValue<KV<K, InputT>>> outputDataset =
-          inputDataSet.partitionCustom((Partitioner<K>) (key, numPartitions) ->
-              Math.abs(key.hashCode()) % numPartitions, input -> input.getValue().getKey());
+          inputDataSet.partitionCustom(
+              (Partitioner<K>) (key, numPartitions) -> Math.abs(key.hashCode()) % numPartitions,
+              input -> input.getValue().getKey());
 
       context.setOutputDataStream(context.getOutput(transform), outputDataset);
     }
