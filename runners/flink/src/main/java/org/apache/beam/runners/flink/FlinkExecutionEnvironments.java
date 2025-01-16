@@ -22,7 +22,6 @@ import static org.apache.flink.streaming.api.environment.StreamExecutionEnvironm
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.apache.beam.sdk.expansion.ExternalConfigRegistrar;
 import org.apache.beam.sdk.util.InstanceBuilder;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.MoreObjects;
@@ -79,7 +78,7 @@ public class FlinkExecutionEnvironments {
 
     // Although Flink uses Rest, it expects the address not to contain a http scheme
     String flinkMasterHostPort = stripHttpSchema(options.getFlinkMaster());
-    Configuration flinkConfiguration = getFlinkConfiguration(confDir, options);
+    Configuration flinkConfiguration = getFlinkConfiguration(confDir, options.getFlinkConfMap());
     ExecutionEnvironment flinkBatchEnv;
 
     // depending on the master, create the right environment.
@@ -165,7 +164,7 @@ public class FlinkExecutionEnvironments {
 
     // Although Flink uses Rest, it expects the address not to contain a http scheme
     String masterUrl = stripHttpSchema(options.getFlinkMaster());
-    Configuration flinkConfiguration = getFlinkConfiguration(confDir, options);
+    Configuration flinkConfiguration = getFlinkConfiguration(confDir, options.getFlinkConfMap());
     StreamExecutionEnvironment flinkStreamEnv;
 
     // depending on the master, create the right environment.
@@ -378,13 +377,10 @@ public class FlinkExecutionEnvironments {
     return 1;
   }
 
-  @VisibleForTesting
-  static Configuration getFlinkConfiguration(
-      @Nullable String flinkConfDir, FlinkPipelineOptions flinkPipelineOptions) {
+  private static Configuration getFlinkConfiguration(
+      @Nullable String flinkConfDir, @Nullable Map<String, String> flinkConfMap) {
     Configuration dynamicProperties = null;
-    final Map<String, String> flinkConfMap = flinkPipelineOptions.getFlinkConfMap();
-    flinkConfMap.putAll(ExternalConfigRegistrar.getConfig(flinkPipelineOptions));
-    if (!flinkConfMap.isEmpty()) {
+    if (flinkConfMap != null && !flinkConfMap.isEmpty()) {
       dynamicProperties = Configuration.fromMap(flinkConfMap);
     }
     if (flinkConfDir != null && !flinkConfDir.isEmpty()) {

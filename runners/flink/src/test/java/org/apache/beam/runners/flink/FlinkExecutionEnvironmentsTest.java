@@ -17,14 +17,11 @@
  */
 package org.apache.beam.runners.flink;
 
-import static org.apache.beam.runners.flink.FlinkExecutionEnvironments.getFlinkConfiguration;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,8 +31,6 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.LocalEnvironment;
 import org.apache.flink.api.java.RemoteEnvironment;
@@ -496,22 +491,6 @@ public class FlinkExecutionEnvironmentsTest {
         FlinkExecutionEnvironments.createStreamExecutionEnvironment(options);
 
     assertThat(sev.getStateBackend(), instanceOf(RocksDBStateBackend.class));
-  }
-
-  @Test
-  public void testGetFlinkConfiguration() {
-    Configuration configuration = getFlinkConfiguration(null, getDefaultPipelineOptions());
-    assertNotNull(configuration);
-  }
-
-  @Test
-  public void testGetFlinkConfigurationWithConfigMap() {
-    FlinkPipelineOptions options = getDefaultPipelineOptions();
-    options.setFlinkConfMap(
-        new HashMap<>(ImmutableMap.<String, String>builder().put("mapKey", "mapValue").build()));
-    Configuration configuration = getFlinkConfiguration(null, options);
-    assertTrue(configuration.containsKey("mapKey"));
-    assertEquals("mapValue", configuration.getString("mapKey", ""));
   }
 
   private void checkHostAndPort(Object env, String expectedHost, int expectedPort) {
