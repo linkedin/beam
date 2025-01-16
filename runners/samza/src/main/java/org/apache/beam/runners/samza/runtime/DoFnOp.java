@@ -76,6 +76,8 @@ import org.slf4j.LoggerFactory;
 })
 public class DoFnOp<InT, FnOutT, OutT> implements Op<InT, OutT, Void> {
   private static final Logger LOG = LoggerFactory.getLogger(DoFnOp.class);
+  public static final String TIMER_BATCH_LIMIT_CONFIG =
+      "beam.samza.dofnop.timerBatchLimit";
 
   private final TupleTag<FnOutT> mainOutputTag;
   private final DoFn<InT, FnOutT> doFn;
@@ -124,6 +126,7 @@ public class DoFnOp<InT, FnOutT, OutT> implements Op<InT, OutT, Void> {
   private transient ExecutableStageContext stageContext;
   private transient StageBundleFactory stageBundleFactory;
   private transient boolean bundleDisabled;
+  private transient int timerBatchLimit;
 
   private final DoFnSchemaInformation doFnSchemaInformation;
   private final Map<?, PCollectionView<?>> sideInputMapping;
@@ -183,6 +186,7 @@ public class DoFnOp<InT, FnOutT, OutT> implements Op<InT, OutT, Void> {
       Context context,
       Scheduler<KeyedTimerData<Void>> timerRegistry,
       OpEmitter<OutT> emitter) {
+    this.timerBatchLimit = config.getInt(TIMER_BATCH_LIMIT_CONFIG,Integer.MAX_VALUE);
     this.inputWatermark = BoundedWindow.TIMESTAMP_MIN_VALUE;
     this.sideInputWatermark = BoundedWindow.TIMESTAMP_MIN_VALUE;
     this.pushbackWatermarkHold = BoundedWindow.TIMESTAMP_MAX_VALUE;
@@ -330,9 +334,12 @@ public class DoFnOp<InT, FnOutT, OutT> implements Op<InT, OutT, Void> {
     timerInternalsFactory.setInputWatermark(actualInputWatermark);
 
     Collection<? extends KeyedTimerData<?>> readyTimers = timerInternalsFactory.removeReadyTimers();
-    if (!readyTimers.isEmpty()) {
+    // Process timers in chunks
+    Iterator<? extends KeyedTimerData<?>> timerIterator = readyTimers.iterator();
+    while (timerIterator.hasNext()) {
       pushbackFnRunner.startBundle();
-      for (KeyedTimerData<?> keyedTimerData : readyTimers) {
+      for (int i = 0; i < timerBatchLimit && timerIterator.hasNext(); i++) {
+        KeyedTimerData<?> keyedTimerData = timerIterator.next();
         fireTimer(keyedTimerData);
       }
       pushbackFnRunner.finishBundle();
