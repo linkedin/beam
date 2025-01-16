@@ -76,8 +76,7 @@ import org.slf4j.LoggerFactory;
 })
 public class DoFnOp<InT, FnOutT, OutT> implements Op<InT, OutT, Void> {
   private static final Logger LOG = LoggerFactory.getLogger(DoFnOp.class);
-  public static final String TIMER_BATCH_LIMIT_CONFIG =
-      "beam.samza.dofnop.timerBatchLimit";
+  public static final String TIMER_BATCH_LIMIT_CONFIG = "beam.samza.dofnop.timerBatchLimit";
 
   private final TupleTag<FnOutT> mainOutputTag;
   private final DoFn<InT, FnOutT> doFn;
