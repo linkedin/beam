@@ -186,7 +186,7 @@ public class DoFnOp<InT, FnOutT, OutT> implements Op<InT, OutT, Void> {
       Context context,
       Scheduler<KeyedTimerData<Void>> timerRegistry,
       OpEmitter<OutT> emitter) {
-    this.timerBatchLimit = config.getInt(TIMER_BATCH_LIMIT_CONFIG,Integer.MAX_VALUE);
+    this.timerBatchLimit = config.getInt(TIMER_BATCH_LIMIT_CONFIG, Integer.MAX_VALUE);
     this.inputWatermark = BoundedWindow.TIMESTAMP_MIN_VALUE;
     this.sideInputWatermark = BoundedWindow.TIMESTAMP_MIN_VALUE;
     this.pushbackWatermarkHold = BoundedWindow.TIMESTAMP_MAX_VALUE;
