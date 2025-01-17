@@ -17,9 +17,11 @@
  */
 package org.apache.beam.runners.flink;
 
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.beam.sdk.options.ApplicationNameOptions;
 import org.apache.beam.sdk.options.Default;
+import org.apache.beam.sdk.options.DefaultValueFactory;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.FileStagingOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -307,9 +309,18 @@ public interface FlinkPipelineOptions
   void setFlinkConfDir(String confDir);
 
   @Description("Map containing Flink configurations")
+  @Default.InstanceFactory(FlinkConfMapFactory.class)
   Map<String, String> getFlinkConfMap();
 
   void setFlinkConfMap(Map<String, String> flinkConfMap);
+
+  /** Returns an empty map, to avoid handling null. */
+  class FlinkConfMapFactory implements DefaultValueFactory<Map<String, String>> {
+    @Override
+    public Map<String, String> create(PipelineOptions options) {
+      return new HashMap<>();
+    }
+  }
 
   static FlinkPipelineOptions defaults() {
     return PipelineOptionsFactory.as(FlinkPipelineOptions.class);
