@@ -29,10 +29,7 @@ import org.apache.beam.sdk.values.POutput;
  * Samza runner. For example:
  *
  * <p>input.apply(GroupWithoutRepartition.of(Count.perKey()));
- *
- * @deprecated use {@link org.apache.beam.sdk.transforms.GroupWithoutRepartition} instead.
  */
-@Deprecated
 public class GroupWithoutRepartition<InputT extends PInput, OutputT extends POutput>
     extends PTransform<InputT, OutputT> {
   private final PTransform<InputT, OutputT> transform;
