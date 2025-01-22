@@ -262,8 +262,7 @@ class GroupByKeyTranslator<K, InputT, OutputT>
       return true;
     }
 
-    if (node.getTransform() instanceof GroupWithoutRepartition
-        || node.getTransform() instanceof org.apache.beam.sdk.transforms.GroupWithoutRepartition) {
+    if (node.getTransform() instanceof GroupWithoutRepartition) {
       return false;
     } else {
       return needRepartition(node.getEnclosingNode(), ctx);
