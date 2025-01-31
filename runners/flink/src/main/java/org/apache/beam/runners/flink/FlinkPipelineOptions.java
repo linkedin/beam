@@ -308,20 +308,6 @@ public interface FlinkPipelineOptions
 
   void setFlinkConfDir(String confDir);
 
-  @Description("Map containing Flink configurations")
-  @Default.InstanceFactory(FlinkConfMapFactory.class)
-  Map<String, String> getFlinkConfMap();
-
-  void setFlinkConfMap(Map<String, String> flinkConfMap);
-
-  /** Returns an empty map, to avoid handling null. */
-  class FlinkConfMapFactory implements DefaultValueFactory<Map<String, String>> {
-    @Override
-    public Map<String, String> create(PipelineOptions options) {
-      return new HashMap<>();
-    }
-  }
-
   static FlinkPipelineOptions defaults() {
     return PipelineOptionsFactory.as(FlinkPipelineOptions.class);
   }
