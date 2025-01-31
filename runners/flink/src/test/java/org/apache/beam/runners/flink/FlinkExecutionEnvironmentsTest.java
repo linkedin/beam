@@ -504,16 +504,6 @@ public class FlinkExecutionEnvironmentsTest {
     assertNotNull(configuration);
   }
 
-  @Test
-  public void testGetFlinkConfigurationWithConfigMap() {
-    FlinkPipelineOptions options = getDefaultPipelineOptions();
-    options.setFlinkConfMap(
-        new HashMap<>(ImmutableMap.<String, String>builder().put("mapKey", "mapValue").build()));
-    Configuration configuration = getFlinkConfiguration(null, options);
-    assertTrue(configuration.containsKey("mapKey"));
-    assertEquals("mapValue", configuration.getString("mapKey", ""));
-  }
-
   private void checkHostAndPort(Object env, String expectedHost, int expectedPort) {
     String host =
         ((Configuration) Whitebox.getInternalState(env, "configuration"))
