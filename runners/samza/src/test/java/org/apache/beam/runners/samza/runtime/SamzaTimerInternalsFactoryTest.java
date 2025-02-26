@@ -687,4 +687,50 @@ public class SamzaTimerInternalsFactoryTest {
     assertTrue(!map.containsKey(key2));
     assertTrue(map.isEmpty());
   }
+
+  @Test
+  public void testFireReadyTimersConsolidatedLogic() {
+    // Set up the pipeline options and state store.
+    SamzaPipelineOptions pipelineOptions =
+        PipelineOptionsFactory.create().as(SamzaPipelineOptions.class);
+    KeyValueStore<ByteArray, StateValue<?>> store = createStore();
+    final SamzaTimerInternalsFactory<String> timerInternalsFactory =
+        createTimerInternalsFactory(null, "timer", pipelineOptions, store);
+
+    final String key = "testKey";
+    final StateNamespace namespace = StateNamespaces.global();
+    // Get the TimerInternals for the key.
+    TimerInternals timerInternals = timerInternalsFactory.timerInternalsForKey(key);
+
+    // Create two timers with different timestamps.
+    TimerInternals.TimerData timer1 =
+        TimerInternals.TimerData.of(
+            "timer1", namespace, new Instant(10), new Instant(10), TimeDomain.EVENT_TIME);
+    TimerInternals.TimerData timer2 =
+        TimerInternals.TimerData.of(
+            "timer2", namespace, new Instant(20), new Instant(20), TimeDomain.EVENT_TIME);
+    // Set the timers.
+    timerInternals.setTimer(timer1);
+    timerInternals.setTimer(timer2);
+
+    // Set the input watermark such that both timers are due.
+    timerInternalsFactory.setInputWatermark(new Instant(30));
+
+    // List to collect fired timers.
+    final List<KeyedTimerData<String>> firedTimers = new ArrayList<>();
+
+    // Invoke the consolidated timer firing logic.
+    timerInternalsFactory.fireReadyTimers(timer -> firedTimers.add(timer));
+
+    // Verify that both timers have been fired in order.
+    assertEquals("Expected two fired timers", 2, firedTimers.size());
+    assertEquals("First fired timer should be timer1", timer1, firedTimers.get(0).getTimerData());
+    assertEquals("Second fired timer should be timer2", timer2, firedTimers.get(1).getTimerData());
+
+    // Also, the event time buffer should be empty after firing.
+    assertTrue(
+        "Event time buffer should be empty", timerInternalsFactory.getEventTimeBuffer().isEmpty());
+
+    store.close();
+  }
 }
