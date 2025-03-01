@@ -329,14 +329,9 @@ public class DoFnOp<InT, FnOutT, OutT> implements Op<InT, OutT, Void> {
 
     timerInternalsFactory.setInputWatermark(actualInputWatermark);
 
-    Collection<? extends KeyedTimerData<?>> readyTimers = timerInternalsFactory.removeReadyTimers();
-    if (!readyTimers.isEmpty()) {
-      pushbackFnRunner.startBundle();
-      for (KeyedTimerData<?> keyedTimerData : readyTimers) {
-        fireTimer(keyedTimerData);
-      }
-      pushbackFnRunner.finishBundle();
-    }
+    pushbackFnRunner.startBundle();
+    timerInternalsFactory.fireReadyTimers(this::fireTimer);
+    pushbackFnRunner.finishBundle();
 
     if (timerInternalsFactory.getOutputWatermark() == null
         || timerInternalsFactory.getOutputWatermark().isBefore(actualInputWatermark)) {

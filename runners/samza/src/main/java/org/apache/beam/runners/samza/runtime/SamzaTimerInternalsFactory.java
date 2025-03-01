@@ -207,6 +207,69 @@ public class SamzaTimerInternalsFactory<K> implements TimerInternalsFactory<K> {
     state.deletePersisted(keyedTimerData);
   }
 
+  /** Functional interface for firing a timer. */
+  @FunctionalInterface
+  public interface TimeFiringFn<K> {
+    void fire(KeyedTimerData<K> timerData);
+  }
+
+  /**
+   * Processes and fires ready timers, ensuring that at most {@code maxReadyTimersToProcessOnce}
+   * timers are handled per invocation.
+   *
+   * <p>Steps:
+   *
+   * <ol>
+   *   <li>If the event time buffer is empty, reload timers from state.
+   *   <li>Process timers up to the max limit:
+   *       <ul>
+   *         <li>Check if the next timer is due (timestamp ≤ input watermark).
+   *         <li>If valid, remove it from the buffer, verify its state, and fire it.
+   *       </ul>
+   *   <li>If the max limit is reached and expired timers remain, log a warning.
+   * </ol>
+   *
+   * @param firingFn function to fire each valid timer
+   */
+  public void fireReadyTimers(TimeFiringFn<K> firingFn) {
+    int processedCount = 0;
+
+    while (processedCount < maxReadyTimersToProcessOnce) {
+      // If the buffer is empty, attempt to reload timers from state.
+      if (eventTimeBuffer.isEmpty()) {
+        state.reloadEventTimeTimers();
+        // If still empty after reloading, break out as there are no timers to process.
+        if (eventTimeBuffer.isEmpty()) {
+          break;
+        }
+      }
+
+      // Process the timer only if it is due (timestamp <= inputWatermark).
+      if (!eventTimeBuffer.first().getTimerData().getTimestamp().isAfter(inputWatermark)) {
+        final KeyedTimerData<K> timer = eventTimeBuffer.pollFirst();
+        final Long storedTimestamp = state.get(timer);
+        if (storedTimestamp != null
+            && storedTimestamp.equals(timer.getTimerData().getTimestamp().getMillis())) {
+          state.deletePersisted(timer);
+          firingFn.fire(timer);
+          processedCount++;
+        }
+      } else {
+        // No more timers are due.
+        break;
+      }
+    }
+    LOG.debug("Processed {} expired timers at this watermark.", processedCount);
+    // Log a warning if we've hit the processing limit and there are still expired timers remaining.
+    if (processedCount == maxReadyTimersToProcessOnce
+        && !eventTimeBuffer.isEmpty()
+        && eventTimeBuffer.first().getTimerData().getTimestamp().isBefore(inputWatermark)) {
+      LOG.warn(
+          "Loaded {} expired timers, the remaining will be processed at next watermark.",
+          maxReadyTimersToProcessOnce);
+    }
+  }
+
   public Instant getInputWatermark() {
     return inputWatermark;
   }
