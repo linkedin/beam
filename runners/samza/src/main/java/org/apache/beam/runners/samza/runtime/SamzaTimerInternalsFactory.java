@@ -259,7 +259,7 @@ public class SamzaTimerInternalsFactory<K> implements TimerInternalsFactory<K> {
         break;
       }
     }
-
+    LOG.debug("Processed {} expired timers at this watermark.", processedCount);
     // Log a warning if we've hit the processing limit and there are still expired timers remaining.
     if (processedCount == maxReadyTimersToProcessOnce
         && !eventTimeBuffer.isEmpty()
