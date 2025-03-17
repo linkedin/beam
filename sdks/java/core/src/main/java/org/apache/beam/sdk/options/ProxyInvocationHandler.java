@@ -213,15 +213,21 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
       // we can't use computeIfAbsent here because evaluating the default may cause more properties
       // to be evaluated, and computeIfAbsent is not re-entrant.
       if (!options.containsKey(propertyName)) {
-        // Lazy bind the default to the method.
-        Object value =
-            jsonOptions.containsKey(propertyName)
-                ? getValueFromJson(propertyName, method)
-                : getDefault((PipelineOptions) proxy, method);
+        Object value;
+        // Li-specific change:
+        if (UnitTestHelper.containsProperty(method, propertyName)) {
+          value = UnitTestHelper.getProperty(method, propertyName);
+        } else {
+          // Lazy bind the default to the method.
+          value = jsonOptions.containsKey(propertyName) ? getValueFromJson(propertyName, method)
+              : getDefault((PipelineOptions) proxy, method);
+        }
         options.put(propertyName, BoundValue.fromDefault(value));
       }
       return options.get(propertyName).getValue();
     } else if (properties.settersToPropertyNames.containsKey(methodName)) {
+      // LI-SPECIFIC CHANGE
+      UnitTestHelper.setProperty(method, properties.settersToPropertyNames.get(methodName), BoundValue.fromExplicitOption(args[0]));
       options.put(
           properties.settersToPropertyNames.get(methodName),
           BoundValue.fromExplicitOption(args[0]));
