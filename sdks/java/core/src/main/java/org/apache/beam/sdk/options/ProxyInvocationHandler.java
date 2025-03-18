@@ -219,12 +219,13 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
         final PropertyCustomizationHandler handler = PropertyCustomizationHandler.get();
         if (handler != null && handler.isCustomizationEnabled() && handler.containsProperty(method, propertyName)) {
           value = handler.getProperty(method, propertyName);
+          options.put(propertyName, (BoundValue) value);
         } else {
           // Lazy bind the default to the method.
           value = jsonOptions.containsKey(propertyName) ? getValueFromJson(propertyName, method)
               : getDefault((PipelineOptions) proxy, method);
+          options.put(propertyName, BoundValue.fromDefault(value));
         }
-        options.put(propertyName, BoundValue.fromDefault(value));
       }
       return options.get(propertyName).getValue();
     } else if (properties.settersToPropertyNames.containsKey(methodName)) {
