@@ -1,4 +1,4 @@
-package org.apache.beam.sdk.options;
+package org.apache.beam.sdk.testing;
 
 import java.lang.reflect.Method;
 import java.util.Iterator;
