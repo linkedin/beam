@@ -214,9 +214,10 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
       // to be evaluated, and computeIfAbsent is not re-entrant.
       if (!options.containsKey(propertyName)) {
         Object value;
-        // Li-specific change:
-        if (UnitTestHelper.containsProperty(method, propertyName)) {
-          value = UnitTestHelper.getProperty(method, propertyName);
+        // LI-SPECIFIC CHANGE to handler property when require
+        final PropertyCustomizationHandler handler = PropertyCustomizationHandler.get();
+        if (handler != null && handler.isCustomizationEnabled() && handler.containsProperty(method, propertyName)) {
+          value = handler.getProperty(method, propertyName);
         } else {
           // Lazy bind the default to the method.
           value = jsonOptions.containsKey(propertyName) ? getValueFromJson(propertyName, method)
@@ -226,8 +227,12 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
       }
       return options.get(propertyName).getValue();
     } else if (properties.settersToPropertyNames.containsKey(methodName)) {
-      // LI-SPECIFIC CHANGE
-      UnitTestHelper.setProperty(method, properties.settersToPropertyNames.get(methodName), BoundValue.fromExplicitOption(args[0]));
+      // LI-SPECIFIC CHANGE to handler property when required
+      final PropertyCustomizationHandler handler = PropertyCustomizationHandler.get();
+      if (handler != null && handler.isCustomizationEnabled()) {
+        handler.setProperty(method, properties.settersToPropertyNames.get(methodName),
+            BoundValue.fromExplicitOption(args[0]));
+      }
       options.put(
           properties.settersToPropertyNames.get(methodName),
           BoundValue.fromExplicitOption(args[0]));

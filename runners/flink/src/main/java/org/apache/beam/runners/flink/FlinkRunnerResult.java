@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.beam.runners.core.metrics.MetricsContainerStepMap;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.metrics.MetricResults;
+import org.apache.beam.sdk.options.PropertyCustomizationHandler;
 import org.apache.beam.sdk.options.UnitTestHelper;
 import org.apache.beam.sdk.transforms.PTransformOverrideRegistrar;
 import org.joda.time.Duration;
@@ -68,14 +69,12 @@ public class FlinkRunnerResult implements PipelineResult {
 
   @Override
   public State waitUntilFinish() {
-    UnitTestHelper.clear();
     PTransformOverrideRegistrar.clear();
     return State.DONE;
   }
 
   @Override
   public State waitUntilFinish(Duration duration) {
-    UnitTestHelper.clear();
     PTransformOverrideRegistrar.clear();
     return State.DONE;
   }
