@@ -23,8 +23,6 @@ import static org.apache.samza.config.TaskConfig.TASK_SHUTDOWN_MS;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.metrics.MetricResults;
-import org.apache.beam.sdk.options.PropertyCustomizationHandler;
-import org.apache.beam.sdk.options.UnitTestHelper;
 import org.apache.beam.sdk.transforms.PTransformOverrideRegistrar;
 import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.samza.config.Config;
