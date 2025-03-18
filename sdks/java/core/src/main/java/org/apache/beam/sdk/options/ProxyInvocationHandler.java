@@ -59,6 +59,7 @@ import org.apache.beam.sdk.options.PipelineOptionsFactory.AnnotationPredicates;
 import org.apache.beam.sdk.options.PipelineOptionsFactory.Registration;
 import org.apache.beam.sdk.options.ValueProvider.RuntimeValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
+import org.apache.beam.sdk.testing.PropertyCustomizationHandler;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.transforms.display.HasDisplayData;
 import org.apache.beam.sdk.util.InstanceBuilder;
@@ -213,15 +214,26 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
       // we can't use computeIfAbsent here because evaluating the default may cause more properties
       // to be evaluated, and computeIfAbsent is not re-entrant.
       if (!options.containsKey(propertyName)) {
-        // Lazy bind the default to the method.
-        Object value =
-            jsonOptions.containsKey(propertyName)
-                ? getValueFromJson(propertyName, method)
-                : getDefault((PipelineOptions) proxy, method);
+        Object value;
+        // LI-SPECIFIC CHANGE to handler property when require
+        final PropertyCustomizationHandler handler = PropertyCustomizationHandler.get();
+        if (handler != null && handler.isCustomizationEnabled() && handler.containsProperty(method, propertyName)) {
+          value = handler.getProperty(method, propertyName);
+        } else {
+          // Lazy bind the default to the method.
+          value = jsonOptions.containsKey(propertyName) ? getValueFromJson(propertyName, method)
+              : getDefault((PipelineOptions) proxy, method);
+        }
         options.put(propertyName, BoundValue.fromDefault(value));
       }
       return options.get(propertyName).getValue();
     } else if (properties.settersToPropertyNames.containsKey(methodName)) {
+      // LI-SPECIFIC CHANGE to handler property when required
+      final PropertyCustomizationHandler handler = PropertyCustomizationHandler.get();
+      if (handler != null && handler.isCustomizationEnabled()) {
+        handler.setProperty(method, properties.settersToPropertyNames.get(methodName),
+            BoundValue.fromExplicitOption(args[0]));
+      }
       options.put(
           properties.settersToPropertyNames.get(methodName),
           BoundValue.fromExplicitOption(args[0]));
