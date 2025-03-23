@@ -17,7 +17,8 @@
  */
 package org.apache.beam.runners.flink.translation.wrappers.streaming;
 
-import static org.apache.beam.sdk.metrics.MetricsEnvironment.*;
+import static org.apache.beam.sdk.metrics.MetricsEnvironment.CONTAINER_GLOBAL;
+import static org.apache.beam.sdk.metrics.MetricsEnvironment.GLOBAL_CONTAINER_STEP_NAME;
 import static org.apache.flink.util.Preconditions.checkArgument;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
