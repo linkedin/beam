@@ -522,7 +522,8 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
       // Li-specific change to allow setup global metrics.
       synchronized (CONTAINER_GLOBAL) {
         if (CONTAINER_GLOBAL.get() == null) {
-          MetricsEnvironment.setGlobalContainer(flinkMetricContainer.getMetricsContainer(GLOBAL_CONTAINER_STEP_NAME));
+          MetricsEnvironment.setGlobalContainer(
+              flinkMetricContainer.getMetricsContainer(GLOBAL_CONTAINER_STEP_NAME));
         }
       }
       doFnRunner = new DoFnRunnerWithMetricsUpdate<>(stepName, doFnRunner, flinkMetricContainer);
