@@ -60,9 +60,10 @@ public class MetricsEnvironment {
   private static final AtomicReference<@Nullable MetricsContainer> PROCESS_WIDE_METRICS_CONTAINER =
       new AtomicReference<>();
 
-  private static final AtomicReference<@Nullable MetricsContainer> CONTAINER_GLOBAL =
+  public static final AtomicReference<@Nullable MetricsContainer> CONTAINER_GLOBAL =
       new AtomicReference<>(null);
-
+  // Li-specific change to allow setup global metrics.
+  public static final String GLOBAL_CONTAINER_STEP_NAME = "GLOBAL_METRICS";
   /** Set the global {@link MetricsContainer}. */
   public static void setGlobalContainer(@Nullable MetricsContainer container) {
     CONTAINER_GLOBAL.set(container);

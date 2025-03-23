@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.flink.translation.wrappers.streaming;
 
+import static org.apache.beam.sdk.metrics.MetricsEnvironment.*;
 import static org.apache.flink.util.Preconditions.checkArgument;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -70,6 +71,7 @@ import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.metrics.MetricName;
+import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.state.StateSpec;
 import org.apache.beam.sdk.state.TimeDomain;
@@ -517,6 +519,12 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
 
     if (!options.getDisableMetrics()) {
       flinkMetricContainer = new FlinkMetricContainer(getRuntimeContext());
+      // Li-specific change to allow setup global metrics.
+      synchronized (CONTAINER_GLOBAL) {
+        if (CONTAINER_GLOBAL.get() == null) {
+          MetricsEnvironment.setGlobalContainer(flinkMetricContainer.getMetricsContainer(GLOBAL_CONTAINER_STEP_NAME));
+        }
+      }
       doFnRunner = new DoFnRunnerWithMetricsUpdate<>(stepName, doFnRunner, flinkMetricContainer);
       String checkpointMetricNamespace = options.getReportCheckpointDuration();
       if (checkpointMetricNamespace != null) {
