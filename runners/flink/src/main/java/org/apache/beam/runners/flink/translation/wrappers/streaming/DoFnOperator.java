@@ -17,8 +17,6 @@
  */
 package org.apache.beam.runners.flink.translation.wrappers.streaming;
 
-import static org.apache.beam.sdk.metrics.MetricsEnvironment.CONTAINER_GLOBAL;
-import static org.apache.beam.sdk.metrics.MetricsEnvironment.GLOBAL_CONTAINER_STEP_NAME;
 import static org.apache.flink.util.Preconditions.checkArgument;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -58,6 +56,7 @@ import org.apache.beam.runners.core.TimerInternals;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
+import org.apache.beam.runners.flink.metrics.CustomizeMetricsRegistrar;
 import org.apache.beam.runners.flink.metrics.DoFnRunnerWithMetricsUpdate;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
 import org.apache.beam.runners.flink.translation.types.CoderTypeSerializer;
@@ -72,7 +71,6 @@ import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.metrics.MetricName;
-import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.state.StateSpec;
 import org.apache.beam.sdk.state.TimeDomain;
@@ -520,12 +518,9 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
 
     if (!options.getDisableMetrics()) {
       flinkMetricContainer = new FlinkMetricContainer(getRuntimeContext());
-      // Li-specific change to allow setup global metrics.
-      synchronized (CONTAINER_GLOBAL) {
-        if (CONTAINER_GLOBAL.get() == null) {
-          MetricsEnvironment.setGlobalContainer(
-              flinkMetricContainer.getMetricsContainer(GLOBAL_CONTAINER_STEP_NAME));
-        }
+      // LI-SPECIFIC change to support global metrics in Flink runner
+      if (CustomizeMetricsRegistrar.get() != null) {
+        CustomizeMetricsRegistrar.get().setupMetrics(flinkMetricContainer);
       }
       doFnRunner = new DoFnRunnerWithMetricsUpdate<>(stepName, doFnRunner, flinkMetricContainer);
       String checkpointMetricNamespace = options.getReportCheckpointDuration();
