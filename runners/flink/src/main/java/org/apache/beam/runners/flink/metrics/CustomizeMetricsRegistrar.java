@@ -5,9 +5,7 @@ import java.util.Iterator;
 import java.util.ServiceLoader;
 import javax.annotation.Nullable;
 
-/**
- * Interface to support flexible metrics supports wire-in for Li.
- */
+/** Interface to support flexible metrics supports wire-in for Li. */
 public interface CustomizeMetricsRegistrar {
   void setupMetrics(FlinkMetricContainer flinkMetricContainer);
 
@@ -31,6 +29,8 @@ public interface CustomizeMetricsRegistrar {
   static @Nullable CustomizeMetricsRegistrar get() {
     final Iterator<CustomizeMetricsRegistrar.Registrar> registrarIterator =
         ServiceLoader.load(CustomizeMetricsRegistrar.Registrar.class).iterator();
-    return registrarIterator.hasNext() ? Iterators.getOnlyElement(registrarIterator).create() : null;
+    return registrarIterator.hasNext()
+        ? Iterators.getOnlyElement(registrarIterator).create()
+        : null;
   }
 }
