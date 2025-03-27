@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
+import org.apache.beam.runners.flink.metrics.GlobalMetricsUtils;
 import org.apache.beam.runners.flink.metrics.ReaderInvocationUtil;
 import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.io.Source;
@@ -73,6 +74,8 @@ public class SourceInputFormat<T> extends RichInputFormat<WindowedValue<T>, Sour
   @Override
   public void open(SourceInputSplit<T> sourceInputSplit) throws IOException {
     metricContainer = new FlinkMetricContainer(getRuntimeContext());
+    // LI-SPECIFIC change to support global metrics in Flink runner
+    GlobalMetricsUtils.setGlobalMetrics(metricContainer);
 
     readerInvoker = new ReaderInvocationUtil<>(stepName, serializedOptions.get(), metricContainer);
 
