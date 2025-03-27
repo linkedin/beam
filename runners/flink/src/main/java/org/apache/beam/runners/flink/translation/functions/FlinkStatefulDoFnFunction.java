@@ -37,6 +37,7 @@ import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
 import org.apache.beam.runners.flink.metrics.DoFnRunnerWithMetricsUpdate;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
+import org.apache.beam.runners.flink.metrics.GlobalMetricsUtils;
 import org.apache.beam.runners.flink.translation.utils.Workarounds;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.FileSystems;
@@ -260,6 +261,8 @@ public class FlinkStatefulDoFnFunction<K, V, OutputT>
     PipelineOptions options = serializedOptions.get();
     FileSystems.setDefaultPipelineOptions(options);
     metricContainer = new FlinkMetricContainer(getRuntimeContext());
+    // LI-SPECIFIC change to support global metrics in Flink runner
+    GlobalMetricsUtils.setGlobalMetrics(metricContainer);
     doFnInvoker = DoFnInvokers.tryInvokeSetupFor(dofn, options);
   }
 

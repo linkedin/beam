@@ -58,6 +58,7 @@ import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
 import org.apache.beam.runners.flink.metrics.DoFnRunnerWithMetricsUpdate;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
+import org.apache.beam.runners.flink.metrics.GlobalMetricsUtils;
 import org.apache.beam.runners.flink.translation.types.CoderTypeSerializer;
 import org.apache.beam.runners.flink.translation.utils.CheckpointStats;
 import org.apache.beam.runners.flink.translation.utils.Workarounds;
@@ -517,6 +518,8 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
 
     if (!options.getDisableMetrics()) {
       flinkMetricContainer = new FlinkMetricContainer(getRuntimeContext());
+      // LI-SPECIFIC change to support global metrics in Flink runner
+      GlobalMetricsUtils.setGlobalMetrics(flinkMetricContainer);
       doFnRunner = new DoFnRunnerWithMetricsUpdate<>(stepName, doFnRunner, flinkMetricContainer);
       String checkpointMetricNamespace = options.getReportCheckpointDuration();
       if (checkpointMetricNamespace != null) {

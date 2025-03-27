@@ -39,6 +39,7 @@ import org.apache.beam.runners.core.construction.Timer;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
+import org.apache.beam.runners.flink.metrics.GlobalMetricsUtils;
 import org.apache.beam.runners.fnexecution.control.BundleCheckpointHandler;
 import org.apache.beam.runners.fnexecution.control.BundleCheckpointHandlers;
 import org.apache.beam.runners.fnexecution.control.BundleFinalizationHandler;
@@ -152,6 +153,8 @@ public class FlinkExecutableStageFunction<InputT> extends AbstractRichFunction
     executableStage = ExecutableStage.fromPayload(stagePayload);
     runtimeContext = getRuntimeContext();
     metricContainer = new FlinkMetricContainer(runtimeContext);
+    // LI-SPECIFIC change to support global metrics in Flink runner
+    GlobalMetricsUtils.setGlobalMetrics(metricContainer);
     // TODO: Wire this into the distributed cache and make it pluggable.
     stageContext = contextFactory.get(jobInfo);
     stageBundleFactory = stageContext.getStageBundleFactory(executableStage);

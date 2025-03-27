@@ -25,6 +25,7 @@ import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
 import org.apache.beam.runners.core.construction.UnboundedReadFromBoundedSource;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
+import org.apache.beam.runners.flink.metrics.GlobalMetricsUtils;
 import org.apache.beam.runners.flink.metrics.ReaderInvocationUtil;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
 import org.apache.beam.runners.flink.translation.utils.Workarounds;
@@ -186,6 +187,8 @@ public class UnboundedSourceWrapper<OutputT, CheckpointMarkT extends UnboundedSo
     FileSystems.setDefaultPipelineOptions(serializedOptions.get());
     runtimeContext = (StreamingRuntimeContext) getRuntimeContext();
     metricContainer = new FlinkMetricContainer(runtimeContext);
+    // LI-SPECIFIC change to support global metrics in Flink runner
+    GlobalMetricsUtils.setGlobalMetrics(metricContainer);
 
     // figure out which split sources we're responsible for
     int subtaskIndex = runtimeContext.getIndexOfThisSubtask();

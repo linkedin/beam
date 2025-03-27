@@ -68,6 +68,11 @@ public class MetricsEnvironment {
     CONTAINER_GLOBAL.set(container);
   }
 
+  /** LI-SPECIFIC CHANGE. Get the global {@link MetricsContainer}. */
+  public static AtomicReference<@Nullable MetricsContainer> getGlobalContainer() {
+    return CONTAINER_GLOBAL;
+  }
+
   /** Returns the container holder for the current thread. */
   public static MetricsEnvironmentState getMetricsEnvironmentStateForCurrentThread() {
     return CONTAINER_FOR_THREAD.get();
