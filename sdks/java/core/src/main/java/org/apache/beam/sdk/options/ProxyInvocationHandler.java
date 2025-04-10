@@ -295,37 +295,35 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     checkNotNull(iface);
     checkArgument(iface.isInterface(), "Not an interface: %s", iface);
 
-    T existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
-    if (existingOption == null) {
-      synchronized (this) {
-        // double check
-        existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
-        if (existingOption == null) {
-          Registration<T> registration =
-              PipelineOptionsFactory.CACHE
-                  .get()
-                  .validateWellFormed(iface, computedProperties.knownInterfaces);
-          List<PropertyDescriptor> propertyDescriptors = registration.getPropertyDescriptors();
+    // LI-SPECIFIC CHANGE to ensure only one thread can read and write of PipelineOptions
+    synchronized (this) {
+      T existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
 
-          Class<T> proxyClass = registration.getProxyClass();
+      if (existingOption == null) {
+        Registration<T> registration =
+            PipelineOptionsFactory.CACHE
+                .get()
+                .validateWellFormed(iface, computedProperties.knownInterfaces);
+        List<PropertyDescriptor> propertyDescriptors = registration.getPropertyDescriptors();
 
-          existingOption =
-              InstanceBuilder.ofType(proxyClass)
-                  .fromClass(proxyClass)
-                  .withArg(InvocationHandler.class, this)
-                  .build();
+        Class<T> proxyClass = registration.getProxyClass();
 
-          // Linkedin specific change: initialize the offspring generator
-          if (pipelineOptions != null && CustomPipelineOptionsInitializer.get() != null) {
-            existingOption = (T) CustomPipelineOptionsInitializer.get().init(existingOption, iface);
-          }
+        existingOption =
+            InstanceBuilder.ofType(proxyClass)
+                .fromClass(proxyClass)
+                .withArg(InvocationHandler.class, this)
+                .build();
 
-          computedProperties =
-              computedProperties.updated(iface, existingOption, propertyDescriptors);
+        // Linkedin specific change: initialize the offspring generator
+        if (pipelineOptions != null && CustomPipelineOptionsInitializer.get() != null) {
+          existingOption = (T) CustomPipelineOptionsInitializer.get().init(existingOption, iface);
         }
+
+        computedProperties =
+            computedProperties.updated(iface, existingOption, propertyDescriptors);
       }
+      return existingOption;
     }
-    return existingOption;
   }
 
   /**
