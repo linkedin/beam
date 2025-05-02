@@ -21,6 +21,7 @@ import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Prec
 
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.runtime.state.OperatorStateBackend;
@@ -35,18 +36,12 @@ class NonKeyedPushedBackElementsHandler<T> implements PushedBackElementsHandler<
 
   private final OperatorStateBackend backend;
   private final ListStateDescriptor<T> stateDescriptor;
-  private ListState<T> elementState;
+  @Nullable private ListState<T> elementState;
 
   private NonKeyedPushedBackElementsHandler(
       OperatorStateBackend backend, ListStateDescriptor<T> stateDescriptor) {
     this.backend = checkNotNull(backend);
     this.stateDescriptor = checkNotNull(stateDescriptor);
-  }
-
-  private void ensureStateInitialized() throws Exception {
-    if (elementState == null) {
-      elementState = backend.getListState(stateDescriptor);
-    }
   }
 
   @Override
@@ -57,22 +52,28 @@ class NonKeyedPushedBackElementsHandler<T> implements PushedBackElementsHandler<
 
   @Override
   public void clear() throws Exception {
-    if (elementState == null) return;
-    elementState.clear();
+    if (elementState != null) {
+      elementState.clear();
+    }
   }
 
   @Override
   public void pushBack(T element) throws Exception {
-    ensureStateInitialized();
+    if (elementState == null) {
+      elementState = backend.getListState(stateDescriptor);
+    }
     elementState.add(element);
   }
 
   @Override
   public void pushBackAll(Iterable<T> elements) throws Exception {
-    ensureStateInitialized();
+    if (elementState == null) {
+      elementState = backend.getListState(stateDescriptor);
+    }
+    final ListState<T> state = elementState;
     for (T e : elements) {
       // TODO: use addAll() once Flink has addAll(Iterable<T>)
-      elementState.add(e);
+      state.add(e);
     }
   }
 }

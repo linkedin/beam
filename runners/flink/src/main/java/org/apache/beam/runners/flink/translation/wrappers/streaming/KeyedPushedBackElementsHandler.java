@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -48,7 +49,7 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
   private final KeyedStateBackend<K> backend;
   private final String stateName;
   private final ListStateDescriptor<T> stateDescriptor;
-  private ListState<T> state;
+  @Nullable private ListState<T> state;
 
   private KeyedPushedBackElementsHandler(
       KeySelector<T, K> keySelector,
@@ -61,25 +62,17 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
     this.stateDescriptor = Objects.requireNonNull(stateDescriptor);
   }
 
-  private void ensureStateInitialized() throws Exception {
-    if (state == null) {
-      // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
-      this.state =
-          backend.getPartitionedState(
-              VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
-    }
-  }
-
   @Override
   public Stream<T> getElements() {
     if (state == null) return Stream.empty();
+    final ListState<T> s = state;
     return backend
         .getKeys(stateName, VoidNamespace.INSTANCE)
         .flatMap(
             key -> {
               try {
                 backend.setCurrentKey(key);
-                return StreamSupport.stream(state.get().spliterator(), false);
+                return StreamSupport.stream(s.get().spliterator(), false);
               } catch (Exception e) {
                 throw new RuntimeException("Error reading keyed state.", e);
               }
@@ -89,32 +82,42 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
   @Override
   public void clear() throws Exception {
     if (state == null) return;
+    final ListState<T> s = state;
     // TODO we have to collect all keys because otherwise we get ConcurrentModificationExceptions
     // from flink. We can change this once it's fixed in Flink
     List<K> keys = backend.getKeys(stateName, VoidNamespace.INSTANCE).collect(Collectors.toList());
 
     for (K key : keys) {
       backend.setCurrentKey(key);
-      state.clear();
+      s.clear();
     }
   }
 
   @Override
   public void pushBack(T element) throws Exception {
-    ensureStateInitialized();
-    pushBack0(element);
-  }
-
-  private void pushBack0(T element) throws Exception {
+    if (state == null) {
+      // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
+      this.state =
+          backend.getPartitionedState(
+              VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
+    }
+    final ListState<T> s = state;
     backend.setCurrentKey(keySelector.getKey(element));
-    state.add(element);
+    s.add(element);
   }
 
   @Override
   public void pushBackAll(Iterable<T> elements) throws Exception {
-    ensureStateInitialized();
+    if (state == null) {
+      // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
+      this.state =
+          backend.getPartitionedState(
+              VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
+    }
+    final ListState<T> s = state;
     for (T e : elements) {
-      pushBack0(e);
+      backend.setCurrentKey(keySelector.getKey(e));
+      s.add(e);
     }
   }
 }
