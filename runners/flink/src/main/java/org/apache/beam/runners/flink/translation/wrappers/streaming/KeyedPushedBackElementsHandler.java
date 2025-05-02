@@ -64,32 +64,33 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
 
   @Override
   public Stream<T> getElements() {
-    if (state == null) return Stream.empty();
-    final ListState<T> s = state;
-    return backend
-        .getKeys(stateName, VoidNamespace.INSTANCE)
-        .flatMap(
-            key -> {
-              try {
-                backend.setCurrentKey(key);
-                return StreamSupport.stream(s.get().spliterator(), false);
-              } catch (Exception e) {
-                throw new RuntimeException("Error reading keyed state.", e);
-              }
-            });
+    if (state != null) {
+      final ListState<T> s = state;
+      return backend.getKeys(stateName, VoidNamespace.INSTANCE).flatMap(key -> {
+        try {
+          backend.setCurrentKey(key);
+          return StreamSupport.stream(s.get().spliterator(), false);
+        } catch (Exception e) {
+          throw new RuntimeException("Error reading keyed state.", e);
+        }
+      });
+    } else {
+      return Stream.empty();
+    }
   }
 
   @Override
   public void clear() throws Exception {
-    if (state == null) return;
-    final ListState<T> s = state;
-    // TODO we have to collect all keys because otherwise we get ConcurrentModificationExceptions
-    // from flink. We can change this once it's fixed in Flink
-    List<K> keys = backend.getKeys(stateName, VoidNamespace.INSTANCE).collect(Collectors.toList());
+    if (state != null) {
+      final ListState<T> s = state;
+      // TODO we have to collect all keys because otherwise we get ConcurrentModificationExceptions
+      // from flink. We can change this once it's fixed in Flink
+      List<K> keys = backend.getKeys(stateName, VoidNamespace.INSTANCE).collect(Collectors.toList());
 
-    for (K key : keys) {
-      backend.setCurrentKey(key);
-      s.clear();
+      for (K key : keys) {
+        backend.setCurrentKey(key);
+        s.clear();
+      }
     }
   }
 
