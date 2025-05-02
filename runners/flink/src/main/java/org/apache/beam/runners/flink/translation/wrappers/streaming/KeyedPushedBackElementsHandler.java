@@ -47,7 +47,8 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
   private final KeySelector<T, K> keySelector;
   private final KeyedStateBackend<K> backend;
   private final String stateName;
-  private final ListState<T> state;
+  private final ListStateDescriptor<T> stateDescriptor;
+  private ListState<T> state;
 
   private KeyedPushedBackElementsHandler(
       KeySelector<T, K> keySelector,
@@ -57,14 +58,21 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
     this.keySelector = Objects.requireNonNull(keySelector);
     this.backend = Objects.requireNonNull(backend);
     this.stateName = stateDescriptor.getName();
-    // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
-    this.state =
-        backend.getPartitionedState(
-            VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
+    this.stateDescriptor = Objects.requireNonNull(stateDescriptor);
+  }
+
+  private void ensureStateInitialized() throws Exception {
+    if (state == null) {
+      // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
+      this.state =
+          backend.getPartitionedState(
+              VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
+    }
   }
 
   @Override
   public Stream<T> getElements() {
+    if(state == null) return Stream.empty();
     return backend
         .getKeys(stateName, VoidNamespace.INSTANCE)
         .flatMap(
@@ -80,6 +88,7 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
 
   @Override
   public void clear() throws Exception {
+    if (state == null) return;
     // TODO we have to collect all keys because otherwise we get ConcurrentModificationExceptions
     // from flink. We can change this once it's fixed in Flink
     List<K> keys = backend.getKeys(stateName, VoidNamespace.INSTANCE).collect(Collectors.toList());
@@ -92,14 +101,20 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
 
   @Override
   public void pushBack(T element) throws Exception {
+    ensureStateInitialized();
+    pushBack0(element);
+  }
+
+  public void pushBack0(T element) throws Exception {
     backend.setCurrentKey(keySelector.getKey(element));
     state.add(element);
   }
 
   @Override
   public void pushBackAll(Iterable<T> elements) throws Exception {
+    ensureStateInitialized();
     for (T e : elements) {
-      pushBack(e);
+      pushBack0(e);
     }
   }
 }

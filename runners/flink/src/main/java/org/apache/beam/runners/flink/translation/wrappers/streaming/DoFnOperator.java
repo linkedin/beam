@@ -425,9 +425,8 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
           KeyedPushedBackElementsHandler.create(
               keySelector, getKeyedStateBackend(), pushedBackStateDescriptor);
     } else {
-      ListState<WindowedValue<InputT>> listState =
-          getOperatorStateBackend().getListState(pushedBackStateDescriptor);
-      pushedBackElementsHandler = NonKeyedPushedBackElementsHandler.create(listState);
+      pushedBackElementsHandler = NonKeyedPushedBackElementsHandler.create(
+          getOperatorStateBackend(), pushedBackStateDescriptor);
     }
 
     currentInputWatermark = BoundedWindow.TIMESTAMP_MIN_VALUE.getMillis();
@@ -1394,10 +1393,9 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
       ListStateDescriptor<KV<Integer, WindowedValue<?>>> taggedOutputPushbackStateDescriptor =
           new ListStateDescriptor<>(
               "bundle-buffer-tag", new CoderTypeSerializer<>(taggedKvCoder, pipelineOptions));
-      ListState<KV<Integer, WindowedValue<?>>> listStateBuffer =
-          operatorStateBackend.getListState(taggedOutputPushbackStateDescriptor);
       PushedBackElementsHandler<KV<Integer, WindowedValue<?>>> pushedBackElementsHandler =
-          NonKeyedPushedBackElementsHandler.create(listStateBuffer);
+          NonKeyedPushedBackElementsHandler.create(
+              operatorStateBackend, taggedOutputPushbackStateDescriptor);
 
       return new BufferedOutputManager<>(
           output, mainTag, tagsToOutputTags, tagsToIds, bufferLock, pushedBackElementsHandler);

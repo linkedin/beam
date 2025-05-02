@@ -22,37 +22,56 @@ import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Prec
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.runtime.state.OperatorStateBackend;
 
 /** {@link PushedBackElementsHandler} that stores elements in a Flink operator state list. */
 class NonKeyedPushedBackElementsHandler<T> implements PushedBackElementsHandler<T> {
 
-  static <T> NonKeyedPushedBackElementsHandler<T> create(ListState<T> elementState) {
-    return new NonKeyedPushedBackElementsHandler<>(elementState);
+  static <T> NonKeyedPushedBackElementsHandler<T> create(
+      OperatorStateBackend backend,
+      ListStateDescriptor<T> stateDescriptor) {
+    return new NonKeyedPushedBackElementsHandler<>(backend, stateDescriptor);
   }
 
-  private final ListState<T> elementState;
+  private final OperatorStateBackend backend;
+  private final ListStateDescriptor<T> stateDescriptor;
+  private ListState<T> elementState;
 
-  private NonKeyedPushedBackElementsHandler(ListState<T> elementState) {
-    this.elementState = checkNotNull(elementState);
+  private NonKeyedPushedBackElementsHandler(
+      OperatorStateBackend backend,
+      ListStateDescriptor<T> stateDescriptor) {
+    this.backend = checkNotNull(backend);
+    this.stateDescriptor = checkNotNull(stateDescriptor);
+  }
+
+  private void ensureStateInitialized() throws Exception {
+    if (elementState == null) {
+      elementState = backend.getListState(stateDescriptor);
+    }
   }
 
   @Override
   public Stream<T> getElements() throws Exception {
+    if(elementState == null) return Stream.empty();
     return StreamSupport.stream(elementState.get().spliterator(), false);
   }
 
   @Override
-  public void clear() {
+  public void clear() throws Exception {
+    if (elementState == null) return;
     elementState.clear();
   }
 
   @Override
   public void pushBack(T element) throws Exception {
+    ensureStateInitialized();
     elementState.add(element);
   }
 
   @Override
   public void pushBackAll(Iterable<T> elements) throws Exception {
+    ensureStateInitialized();
     for (T e : elements) {
       // TODO: use addAll() once Flink has addAll(Iterable<T>)
       elementState.add(e);
