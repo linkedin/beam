@@ -72,7 +72,7 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
 
   @Override
   public Stream<T> getElements() {
-    if(state == null) return Stream.empty();
+    if (state == null) return Stream.empty();
     return backend
         .getKeys(stateName, VoidNamespace.INSTANCE)
         .flatMap(

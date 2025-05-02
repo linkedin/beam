@@ -29,8 +29,7 @@ import org.apache.flink.runtime.state.OperatorStateBackend;
 class NonKeyedPushedBackElementsHandler<T> implements PushedBackElementsHandler<T> {
 
   static <T> NonKeyedPushedBackElementsHandler<T> create(
-      OperatorStateBackend backend,
-      ListStateDescriptor<T> stateDescriptor) {
+      OperatorStateBackend backend, ListStateDescriptor<T> stateDescriptor) {
     return new NonKeyedPushedBackElementsHandler<>(backend, stateDescriptor);
   }
 
@@ -39,8 +38,7 @@ class NonKeyedPushedBackElementsHandler<T> implements PushedBackElementsHandler<
   private ListState<T> elementState;
 
   private NonKeyedPushedBackElementsHandler(
-      OperatorStateBackend backend,
-      ListStateDescriptor<T> stateDescriptor) {
+      OperatorStateBackend backend, ListStateDescriptor<T> stateDescriptor) {
     this.backend = checkNotNull(backend);
     this.stateDescriptor = checkNotNull(stateDescriptor);
   }
@@ -53,7 +51,7 @@ class NonKeyedPushedBackElementsHandler<T> implements PushedBackElementsHandler<
 
   @Override
   public Stream<T> getElements() throws Exception {
-    if(elementState == null) return Stream.empty();
+    if (elementState == null) return Stream.empty();
     return StreamSupport.stream(elementState.get().spliterator(), false);
   }
 
