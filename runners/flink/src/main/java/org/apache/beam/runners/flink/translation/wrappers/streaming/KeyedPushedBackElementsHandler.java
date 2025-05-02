@@ -105,7 +105,7 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
     pushBack0(element);
   }
 
-  public void pushBack0(T element) throws Exception {
+  private void pushBack0(T element) throws Exception {
     backend.setCurrentKey(keySelector.getKey(element));
     state.add(element);
   }
