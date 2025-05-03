@@ -96,7 +96,6 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditio
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterables;
 import org.apache.flink.api.common.operators.ProcessingTimeService.ProcessingTimeCallback;
-import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
@@ -425,9 +424,9 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
           KeyedPushedBackElementsHandler.create(
               keySelector, getKeyedStateBackend(), pushedBackStateDescriptor);
     } else {
-      ListState<WindowedValue<InputT>> listState =
-          getOperatorStateBackend().getListState(pushedBackStateDescriptor);
-      pushedBackElementsHandler = NonKeyedPushedBackElementsHandler.create(listState);
+      pushedBackElementsHandler =
+          NonKeyedPushedBackElementsHandler.create(
+              getOperatorStateBackend(), pushedBackStateDescriptor);
     }
 
     currentInputWatermark = BoundedWindow.TIMESTAMP_MIN_VALUE.getMillis();
@@ -1394,10 +1393,9 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
       ListStateDescriptor<KV<Integer, WindowedValue<?>>> taggedOutputPushbackStateDescriptor =
           new ListStateDescriptor<>(
               "bundle-buffer-tag", new CoderTypeSerializer<>(taggedKvCoder, pipelineOptions));
-      ListState<KV<Integer, WindowedValue<?>>> listStateBuffer =
-          operatorStateBackend.getListState(taggedOutputPushbackStateDescriptor);
       PushedBackElementsHandler<KV<Integer, WindowedValue<?>>> pushedBackElementsHandler =
-          NonKeyedPushedBackElementsHandler.create(listStateBuffer);
+          NonKeyedPushedBackElementsHandler.create(
+              operatorStateBackend, taggedOutputPushbackStateDescriptor);
 
       return new BufferedOutputManager<>(
           output, mainTag, tagsToOutputTags, tagsToIds, bufferLock, pushedBackElementsHandler);

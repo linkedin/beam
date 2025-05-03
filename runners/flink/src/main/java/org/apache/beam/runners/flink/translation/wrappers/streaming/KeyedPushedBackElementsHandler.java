@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -44,10 +45,11 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
     return new KeyedPushedBackElementsHandler<>(keySelector, backend, stateDescriptor);
   }
 
-  private final KeySelector<T, K> keySelector;
   private final KeyedStateBackend<K> backend;
-  private final String stateName;
-  private final ListState<T> state;
+
+  private final KeySelector<T, K> keySelector;
+  private final ListStateDescriptor<T> stateDescriptor;
+  @Nullable private ListState<T> elementState;
 
   private KeyedPushedBackElementsHandler(
       KeySelector<T, K> keySelector,
@@ -56,17 +58,25 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
       throws Exception {
     this.keySelector = Objects.requireNonNull(keySelector);
     this.backend = Objects.requireNonNull(backend);
-    this.stateName = stateDescriptor.getName();
-    // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
-    this.state =
-        backend.getPartitionedState(
-            VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
+    this.stateDescriptor = Objects.requireNonNull(stateDescriptor);
+    // check if the state is restored from a checkpoint
+    if (this.backend.getKeys(stateDescriptor.getName(), VoidNamespace.INSTANCE).count() > 0) {
+      // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
+      this.elementState =
+          backend.getPartitionedState(
+              VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
+    }
   }
 
   @Override
   public Stream<T> getElements() {
+    if (elementState == null) {
+      return Stream.empty();
+    }
+
+    final ListState<T> state = elementState;
     return backend
-        .getKeys(stateName, VoidNamespace.INSTANCE)
+        .getKeys(stateDescriptor.getName(), VoidNamespace.INSTANCE)
         .flatMap(
             key -> {
               try {
@@ -80,26 +90,44 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
 
   @Override
   public void clear() throws Exception {
-    // TODO we have to collect all keys because otherwise we get ConcurrentModificationExceptions
-    // from flink. We can change this once it's fixed in Flink
-    List<K> keys = backend.getKeys(stateName, VoidNamespace.INSTANCE).collect(Collectors.toList());
+    if (elementState != null) {
+      final ListState<T> state = elementState;
+      // TODO we have to collect all keys because otherwise we get ConcurrentModificationExceptions
+      // from flink. We can change this once it's fixed in Flink
+      List<K> keys =
+          backend
+              .getKeys(stateDescriptor.getName(), VoidNamespace.INSTANCE)
+              .collect(Collectors.toList());
 
-    for (K key : keys) {
-      backend.setCurrentKey(key);
-      state.clear();
+      for (K key : keys) {
+        backend.setCurrentKey(key);
+        state.clear();
+      }
     }
   }
 
   @Override
   public void pushBack(T element) throws Exception {
+    ListState<T> state = getOrCreateState();
     backend.setCurrentKey(keySelector.getKey(element));
     state.add(element);
   }
 
   @Override
   public void pushBackAll(Iterable<T> elements) throws Exception {
+    ListState<T> state = getOrCreateState();
     for (T e : elements) {
-      pushBack(e);
+      backend.setCurrentKey(keySelector.getKey(e));
+      state.add(e);
     }
+  }
+
+  private ListState<T> getOrCreateState() throws Exception {
+    if (elementState == null) {
+      this.elementState =
+          backend.getPartitionedState(
+              VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
+    }
+    return elementState;
   }
 }
