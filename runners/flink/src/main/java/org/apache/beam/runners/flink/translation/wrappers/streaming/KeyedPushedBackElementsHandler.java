@@ -45,11 +45,11 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
     return new KeyedPushedBackElementsHandler<>(keySelector, backend, stateDescriptor);
   }
 
-  private final KeySelector<T, K> keySelector;
   private final KeyedStateBackend<K> backend;
-  private final String stateName;
+
+  private final KeySelector<T, K> keySelector;
   private final ListStateDescriptor<T> stateDescriptor;
-  @Nullable private ListState<T> state;
+  @Nullable private ListState<T> elementState;
 
   private KeyedPushedBackElementsHandler(
       KeySelector<T, K> keySelector,
@@ -58,71 +58,70 @@ class KeyedPushedBackElementsHandler<K, T> implements PushedBackElementsHandler<
       throws Exception {
     this.keySelector = Objects.requireNonNull(keySelector);
     this.backend = Objects.requireNonNull(backend);
-    this.stateName = stateDescriptor.getName();
     this.stateDescriptor = Objects.requireNonNull(stateDescriptor);
-  }
-
-  @Override
-  public Stream<T> getElements() {
-    if (state != null) {
-      final ListState<T> s = state;
-      return backend
-          .getKeys(stateName, VoidNamespace.INSTANCE)
-          .flatMap(
-              key -> {
-                try {
-                  backend.setCurrentKey(key);
-                  return StreamSupport.stream(s.get().spliterator(), false);
-                } catch (Exception e) {
-                  throw new RuntimeException("Error reading keyed state.", e);
-                }
-              });
-    } else {
-      return Stream.empty();
+    // check if the state is restored from a checkpoint
+    if (this.backend.getKeys(stateDescriptor.getName(), VoidNamespace.INSTANCE).count() > 0) {
+      // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
+      this.elementState = backend.getPartitionedState(
+          VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
     }
   }
 
   @Override
+  public Stream<T> getElements() {
+    if (elementState == null) {
+      return Stream.empty();
+    }
+
+    final ListState<T> state = elementState;
+    return backend.getKeys(stateDescriptor.getName(), VoidNamespace.INSTANCE)
+        .flatMap(key -> {
+          try {
+            backend.setCurrentKey(key);
+            return StreamSupport.stream(state.get().spliterator(), false);
+          } catch (Exception e) {
+            throw new RuntimeException("Error reading keyed state.", e);
+          }
+        });
+  }
+
+  @Override
   public void clear() throws Exception {
-    if (state != null) {
-      final ListState<T> s = state;
+    if (elementState != null) {
+      final ListState<T> state = elementState;
       // TODO we have to collect all keys because otherwise we get ConcurrentModificationExceptions
       // from flink. We can change this once it's fixed in Flink
       List<K> keys =
-          backend.getKeys(stateName, VoidNamespace.INSTANCE).collect(Collectors.toList());
+          backend.getKeys(stateDescriptor.getName(), VoidNamespace.INSTANCE).collect(Collectors.toList());
 
       for (K key : keys) {
         backend.setCurrentKey(key);
-        s.clear();
+        state.clear();
       }
     }
   }
 
   @Override
   public void pushBack(T element) throws Exception {
-    if (state == null) {
-      // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
-      this.state =
-          backend.getPartitionedState(
-              VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
-    }
-    final ListState<T> s = state;
+    ListState<T> state = getOrCreateState();
     backend.setCurrentKey(keySelector.getKey(element));
-    s.add(element);
+    state.add(element);
   }
 
   @Override
   public void pushBackAll(Iterable<T> elements) throws Exception {
-    if (state == null) {
-      // Eagerly retrieve the state to work around https://jira.apache.org/jira/browse/FLINK-12653
-      this.state =
-          backend.getPartitionedState(
-              VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
-    }
-    final ListState<T> s = state;
+    ListState<T> state = getOrCreateState();
     for (T e : elements) {
       backend.setCurrentKey(keySelector.getKey(e));
-      s.add(e);
+      state.add(e);
     }
+  }
+
+  private ListState<T> getOrCreateState() throws Exception {
+    if (elementState == null) {
+      this.elementState = backend.getPartitionedState(
+          VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
+    }
+    return elementState;
   }
 }
