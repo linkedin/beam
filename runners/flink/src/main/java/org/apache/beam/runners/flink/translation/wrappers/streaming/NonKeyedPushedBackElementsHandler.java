@@ -50,7 +50,9 @@ class NonKeyedPushedBackElementsHandler<T> implements PushedBackElementsHandler<
 
   @Override
   public Stream<T> getElements() throws Exception {
-    return elementState == null ? Stream.empty() : StreamSupport.stream(elementState.get().spliterator(), false);
+    return elementState == null
+        ? Stream.empty()
+        : StreamSupport.stream(elementState.get().spliterator(), false);
   }
 
   @Override
