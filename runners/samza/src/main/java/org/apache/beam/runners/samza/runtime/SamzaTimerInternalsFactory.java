@@ -596,7 +596,9 @@ public class SamzaTimerInternalsFactory<K> implements TimerInternalsFactory<K> {
       }
 
       timestampSortedEventTimeTimerState.closeIterators();
-      LOG.info("Loaded {} event time timers in memory", eventTimeBuffer.size());
+      if (eventTimeBuffer.size() > 0) {
+        LOG.info("Loaded {} event time timers in memory", eventTimeBuffer.size());
+      }
 
       if (eventTimeBuffer.size() < maxEventTimerBufferSize) {
         LOG.debug(
