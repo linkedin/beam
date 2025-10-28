@@ -31,7 +31,7 @@ public class GlobalMetricsUtils {
   private static final AtomicReference<FlinkMetricContainer> GLOBAL_FLINK_METRIC_CONTAINER =
       new AtomicReference<>();
 
-/**
+  /**
    * Sets the global metrics container if it is not already set.
    *
    * @param flinkMetricContainer The Flink metric container to set as the global container.
