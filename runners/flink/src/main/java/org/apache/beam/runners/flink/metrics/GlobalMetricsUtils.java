@@ -29,9 +29,9 @@ public class GlobalMetricsUtils {
 
   // Maintain a reference to the FlinkMetricContainer for updating global metrics
   private static final AtomicReference<FlinkMetricContainer> GLOBAL_FLINK_METRIC_CONTAINER =
-      new AtomicReference<>(null);
+      new AtomicReference<>();
 
-  /**
+/**
    * Sets the global metrics container if it is not already set.
    *
    * @param flinkMetricContainer The Flink metric container to set as the global container.
