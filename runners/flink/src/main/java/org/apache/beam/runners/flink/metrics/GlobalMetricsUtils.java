@@ -27,7 +27,10 @@ public class GlobalMetricsUtils {
   private static final Logger LOG = LoggerFactory.getLogger(GlobalMetricsUtils.class);
   private static final String GLOBAL_CONTAINER_STEP_NAME = "GLOBAL_METRICS";
 
-  // Maintain a reference to the FlinkMetricContainer for updating global metrics
+  // Maintain a reference to the FlinkMetricContainer for updating global metrics.
+  // This is required because Beam's global metrics need to be published to Flink's metrics system.
+  // The FlinkMetricContainer bridges Beam's metrics API with Flink's native metrics framework,
+  // allowing metrics from async operations to be properly reported to Flink's metric reporters.
   private static final AtomicReference<FlinkMetricContainer> GLOBAL_FLINK_METRIC_CONTAINER =
       new AtomicReference<>();
 
