@@ -21,7 +21,7 @@ import org.apache.beam.sdk.metrics.MetricsEnvironment;
 
 /** Utility class for managing global metrics in a Flink environment. */
 public class GlobalMetricsUtils {
-  private static final String GLOBAL_CONTAINER_STEP_NAME = "GLOBAL_METRICS";
+  static final String GLOBAL_CONTAINER_STEP_NAME = "GLOBAL_METRICS";
 
   /**
    * Sets the global metrics container if it is not already set.
