@@ -17,7 +17,6 @@
  */
 package org.apache.beam.runners.flink.metrics;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,7 +82,8 @@ abstract class FlinkMetricContainerBase {
    * given step.
    */
   void updateMetrics(String stepName) {
-    MetricResults metricResults = MetricsContainerStepMap.asAttemptedOnlyMetricResults(metricsContainers);
+    MetricResults metricResults =
+        MetricsContainerStepMap.asAttemptedOnlyMetricResults(metricsContainers);
     MetricQueryResults metricQueryResults =
         metricResults.queryMetrics(
             MetricsFilter.builder()
