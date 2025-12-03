@@ -17,16 +17,11 @@
  */
 package org.apache.beam.runners.flink.metrics;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.beam.model.pipeline.v1.MetricsApi;
-import org.apache.beam.runners.core.metrics.DefaultMetricResults;
-import org.apache.beam.runners.core.metrics.DistributionData;
-import org.apache.beam.runners.core.metrics.GaugeData;
-import org.apache.beam.runners.core.metrics.MetricUpdates;
 import org.apache.beam.runners.core.metrics.MetricsContainerImpl;
 import org.apache.beam.runners.core.metrics.MetricsContainerStepMap;
 import org.apache.beam.sdk.metrics.DistributionResult;
@@ -88,10 +83,7 @@ abstract class FlinkMetricContainerBase {
    * given step.
    */
   void updateMetrics(String stepName) {
-    List<String> stepNameList =
-        Arrays.asList(stepName, GlobalMetricsUtils.GLOBAL_CONTAINER_STEP_NAME);
-    MetricResults metricResults =
-        asAttemptedOnlyMetricResultsForSteps(metricsContainers, stepNameList);
+    MetricResults metricResults = MetricsContainerStepMap.asAttemptedOnlyMetricResults(metricsContainers);
     MetricQueryResults metricQueryResults =
         metricResults.queryMetrics(
             MetricsFilter.builder()
@@ -101,44 +93,6 @@ abstract class FlinkMetricContainerBase {
     updateCounters(metricQueryResults.getCounters());
     updateDistributions(metricQueryResults.getDistributions());
     updateGauge(metricQueryResults.getGauges());
-  }
-
-  /**
-   * Similar to {@link MetricsContainerStepMap#asAttemptedOnlyMetricResults}, it gets the metrics
-   * results from the MetricsContainerStepMap. Instead of getting from all steps, it gets result
-   * from only interested steps. Thus, it's more efficient.
-   */
-  private static MetricResults asAttemptedOnlyMetricResultsForSteps(
-      MetricsContainerStepMap metricsContainers, List<String> steps) {
-    List<MetricResult<Long>> counters = new ArrayList<>();
-    List<MetricResult<GaugeResult>> gauges = new ArrayList<>();
-    List<MetricResult<DistributionResult>> distributions = new ArrayList<>();
-
-    for (String step : steps) {
-      MetricsContainerImpl container = metricsContainers.getContainer(step);
-      MetricUpdates cumulative = container.getUpdates();
-
-      // Merging counters
-      for (MetricUpdates.MetricUpdate<Long> counterUpdate : cumulative.counterUpdates()) {
-        counters.add(MetricResult.attempted(counterUpdate.getKey(), counterUpdate.getUpdate()));
-      }
-
-      // Merging distributions
-      for (MetricUpdates.MetricUpdate<DistributionData> distributionUpdate :
-          cumulative.distributionUpdates()) {
-        distributions.add(
-            MetricResult.attempted(
-                distributionUpdate.getKey(), distributionUpdate.getUpdate().extractResult()));
-      }
-
-      // Merging gauges
-      for (MetricUpdates.MetricUpdate<GaugeData> gaugeUpdate : cumulative.gaugeUpdates()) {
-        gauges.add(
-            MetricResult.attempted(gaugeUpdate.getKey(), gaugeUpdate.getUpdate().extractResult()));
-      }
-    }
-
-    return new DefaultMetricResults(counters, distributions, gauges);
   }
 
   private void updateCounters(Iterable<MetricResult<Long>> counters) {
