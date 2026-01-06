@@ -17,9 +17,9 @@
  */
 package org.apache.beam.runners.flink.metrics;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.beam.model.pipeline.v1.MetricsApi;
 import org.apache.beam.runners.core.metrics.MetricsContainerImpl;
 import org.apache.beam.runners.core.metrics.MetricsContainerStepMap;
@@ -56,9 +56,9 @@ abstract class FlinkMetricContainerBase {
   private final Map<String, FlinkGauge> flinkGaugeCache;
 
   public FlinkMetricContainerBase() {
-    this.flinkCounterCache = new HashMap<>();
-    this.flinkDistributionGaugeCache = new HashMap<>();
-    this.flinkGaugeCache = new HashMap<>();
+    this.flinkCounterCache = new ConcurrentHashMap<>();
+    this.flinkDistributionGaugeCache = new ConcurrentHashMap<>();
+    this.flinkGaugeCache = new ConcurrentHashMap<>();
     this.metricsContainers = new MetricsContainerStepMap();
   }
 
