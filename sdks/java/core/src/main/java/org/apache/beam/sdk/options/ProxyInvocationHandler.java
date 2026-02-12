@@ -323,6 +323,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
             .build();
 
     if (pipelineOptions != null && CustomPipelineOptionsInitializer.get() != null) {
+      // Linkedin specific change: initialize the offspring generator
       newOption = (T) CustomPipelineOptionsInitializer.get().init(newOption, iface);
     }
 
