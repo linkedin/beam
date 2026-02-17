@@ -99,6 +99,8 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
    */
   private final int hashCode = ThreadLocalRandom.current().nextInt();
 
+  private static final Object LOCK = new Object();
+
   private static final class ComputedProperties {
     final ImmutableClassToInstanceMap<PipelineOptions> interfaceToProxyCache;
     final ImmutableMap<String, String> gettersToPropertyNames;
@@ -140,7 +142,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     }
   }
 
-  /** Only modified while holding a lock on {@code this}. */
+  /** Only modified while holding {@code LOCK}. */
   @SuppressFBWarnings("SE_BAD_FIELD")
   private volatile ComputedProperties computedProperties;
 
@@ -298,7 +300,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     // LI-SPECIFIC CHANGE to ensure only one thread can read and write of PipelineOptions
 
     // Fast path: return cached proxy under lock
-    synchronized (this) {
+    synchronized (LOCK) {
       T existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
       if (existingOption != null) {
         return existingOption;
@@ -328,7 +330,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     }
 
     // Re-acquire lock to update cache; double-check in case another thread raced us
-    synchronized (this) {
+    synchronized (LOCK) {
       T existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
       if (existingOption != null) {
         return existingOption;
