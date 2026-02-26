@@ -1611,7 +1611,7 @@ public class FlinkStateInternals<K> implements StateInternals {
             new MapStateDescriptor<>(
                 id,
                 new CoderTypeSerializer<>(elemCoder, pipelineOptions),
-                new BooleanSerializer()));
+                BooleanSerializer.INSTANCE));
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
