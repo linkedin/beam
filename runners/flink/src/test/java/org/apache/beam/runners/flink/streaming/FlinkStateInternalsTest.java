@@ -19,6 +19,8 @@ package org.apache.beam.runners.flink.streaming;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -33,6 +35,8 @@ import org.apache.beam.runners.flink.FlinkPipelineOptions;
 import org.apache.beam.runners.flink.translation.wrappers.streaming.state.FlinkStateInternals;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.state.SetState;
+import org.apache.beam.sdk.state.StateSpecs;
 import org.apache.beam.sdk.state.WatermarkHoldState;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
 import org.apache.beam.sdk.transforms.windowing.TimestampCombiner;
@@ -182,6 +186,62 @@ public class FlinkStateInternalsTest extends StateInternalsTest {
     state.add(now);
     stateInternals.clearGlobalState();
     assertThat(state.read(), is((Instant) null));
+  }
+
+  /**
+   * Tests that SetState works correctly when EarlyBinder pre-registers the state before
+   * FlinkStateInternals accesses it. This simulates the production flow in DoFnOperator where
+   * earlyBindStateIfNeeded() runs first to work around FLINK-12653. A serializer mismatch between
+   * EarlyBinder and FlinkSetState would cause a ClassCastException.
+   */
+  @Test
+  public void testSetStateAfterEarlyBinding() throws Exception {
+    KeyedStateBackend<ByteBuffer> keyedStateBackend = createStateBackend();
+    SerializablePipelineOptions pipelineOptions =
+        new SerializablePipelineOptions(FlinkPipelineOptions.defaults());
+
+    // Step 1: EarlyBinder pre-registers the state (same as DoFnOperator.earlyBindStateIfNeeded)
+    FlinkStateInternals.EarlyBinder earlyBinder =
+        new FlinkStateInternals.EarlyBinder(keyedStateBackend, pipelineOptions);
+    StateSpecs.set(StringUtf8Coder.of()).bind("testSet", earlyBinder);
+
+    // Step 2: Create FlinkStateInternals and access the same state
+    FlinkStateInternals<String> stateInternals =
+        new FlinkStateInternals<>(
+            keyedStateBackend,
+            StringUtf8Coder.of(),
+            new SerializablePipelineOptions(FlinkPipelineOptions.defaults()));
+
+    StateTag<SetState<String>> setStateTag = StateTags.set("testSet", StringUtf8Coder.of());
+    SetState<String> setState = stateInternals.state(StateNamespaces.global(), setStateTag);
+
+    // Step 3: Verify all SetState operations work without ClassCastException
+    assertThat(setState.read(), is(Matchers.emptyIterable()));
+    assertFalse(setState.contains("A").read());
+
+    // add
+    setState.add("A");
+    assertTrue(setState.contains("A").read());
+    assertFalse(setState.contains("B").read());
+
+    setState.add("B");
+    assertTrue(setState.contains("A").read());
+    assertTrue(setState.contains("B").read());
+
+    // addIfAbsent
+    assertFalse(setState.addIfAbsent("A").read());
+    assertTrue(setState.addIfAbsent("C").read());
+    assertTrue(setState.contains("C").read());
+
+    // remove
+    setState.remove("B");
+    assertFalse(setState.contains("B").read());
+    assertTrue(setState.contains("A").read());
+    assertTrue(setState.contains("C").read());
+
+    // clear
+    setState.clear();
+    assertThat(setState.read(), is(Matchers.emptyIterable()));
   }
 
   public static KeyedStateBackend<ByteBuffer> createStateBackend() throws Exception {
