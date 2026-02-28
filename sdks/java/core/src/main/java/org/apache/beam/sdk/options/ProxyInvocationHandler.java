@@ -99,6 +99,8 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
    */
   private final int hashCode = ThreadLocalRandom.current().nextInt();
 
+  private static final Object LOCK = new Object();
+
   private static final class ComputedProperties {
     final ImmutableClassToInstanceMap<PipelineOptions> interfaceToProxyCache;
     final ImmutableMap<String, String> gettersToPropertyNames;
@@ -140,7 +142,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     }
   }
 
-  /** Only modified while holding a lock on {@code this}. */
+  /** Only modified while holding {@code LOCK}. */
   @SuppressFBWarnings("SE_BAD_FIELD")
   private volatile ComputedProperties computedProperties;
 
@@ -296,33 +298,46 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     checkArgument(iface.isInterface(), "Not an interface: %s", iface);
 
     // LI-SPECIFIC CHANGE to ensure only one thread can read and write of PipelineOptions
-    synchronized (this) {
+
+    // Fast path: return cached proxy under lock
+    synchronized (LOCK) {
       T existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
-
-      if (existingOption == null) {
-        Registration<T> registration =
-            PipelineOptionsFactory.CACHE
-                .get()
-                .validateWellFormed(iface, computedProperties.knownInterfaces);
-        List<PropertyDescriptor> propertyDescriptors = registration.getPropertyDescriptors();
-
-        Class<T> proxyClass = registration.getProxyClass();
-
-        existingOption =
-            InstanceBuilder.ofType(proxyClass)
-                .fromClass(proxyClass)
-                .withArg(InvocationHandler.class, this)
-                .build();
-
-        // Linkedin specific change: initialize the offspring generator
-        if (pipelineOptions != null && CustomPipelineOptionsInitializer.get() != null) {
-          existingOption = (T) CustomPipelineOptionsInitializer.get().init(existingOption, iface);
-        }
-
-        computedProperties =
-            computedProperties.updated(iface, existingOption, propertyDescriptors);
+      if (existingOption != null) {
+        return existingOption;
       }
-      return existingOption;
+    }
+
+    // Slow path: create proxy and run initializer OUTSIDE the lock.
+    // The initializer may dispatch work to other threads (e.g.,FlinkGeneratorHelper.getBean)
+    // that need to re-enter as() on this handler, so the lock must not be held here.
+    Registration<T> registration =
+        PipelineOptionsFactory.CACHE
+            .get()
+            .validateWellFormed(iface, computedProperties.knownInterfaces);
+    List<PropertyDescriptor> propertyDescriptors =
+        registration.getPropertyDescriptors();
+    Class<T> proxyClass = registration.getProxyClass();
+
+    T newOption =
+        InstanceBuilder.ofType(proxyClass)
+            .fromClass(proxyClass)
+            .withArg(InvocationHandler.class, this)
+            .build();
+
+    if (pipelineOptions != null && CustomPipelineOptionsInitializer.get() != null) {
+      // Linkedin specific change: initialize the offspring generator
+      newOption = (T) CustomPipelineOptionsInitializer.get().init(newOption, iface);
+    }
+
+    // Re-acquire lock to update cache; double-check in case another thread raced us
+    synchronized (LOCK) {
+      T existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
+      if (existingOption != null) {
+        return existingOption;
+      }
+      computedProperties =
+          computedProperties.updated(iface, newOption, propertyDescriptors);
+      return newOption;
     }
   }
 
