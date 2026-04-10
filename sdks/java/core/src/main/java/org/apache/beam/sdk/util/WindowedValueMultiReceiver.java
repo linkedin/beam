@@ -18,8 +18,8 @@
 package org.apache.beam.sdk.util;
 
 import org.apache.beam.sdk.annotations.Internal;
+import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.TupleTag;
-import org.apache.beam.sdk.values.WindowedValue;
 
 /**
  * Encapsulation of a method of output that can output a value with all of its windowing information

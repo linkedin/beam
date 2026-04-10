@@ -18,7 +18,7 @@
 package org.apache.beam.sdk.util;
 
 import org.apache.beam.sdk.annotations.Internal;
-import org.apache.beam.sdk.values.WindowedValue;
+import org.apache.beam.sdk.util.WindowedValue;
 
 /** An encapsulated method of output that can output a value with all of its metadata. */
 @Internal
