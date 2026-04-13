@@ -33,8 +33,8 @@ import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
  * {@link StreamSource} utilities, that bridge incompatibilities between Flink releases.
  *
  * <p>Flink 1.20 override: {@link Output} gained the abstract {@code emitRecordAttributes} method.
- * Add a default no-op implementation to {@link OutputWrapper} so existing anonymous implementors
- * do not need to be modified.
+ * Add a default no-op implementation to {@link OutputWrapper} so existing anonymous implementors do
+ * not need to be modified.
  */
 public class StreamSources {
 
