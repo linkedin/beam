@@ -681,7 +681,8 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
                 final InternalTimeServiceManagerImpl<?> cast =
                     (InternalTimeServiceManagerImpl<?>) beamTimeServiceManager;
                 return cast.numProcessingTimeTimers();
-              } else if (beamTimeServiceManager instanceof BatchExecutionInternalTimeServiceManager) {
+              } else if (beamTimeServiceManager
+                  instanceof BatchExecutionInternalTimeServiceManager) {
                 return 0;
               } else {
                 throw new IllegalStateException(
