@@ -80,6 +80,7 @@
   <suppress checks="JavadocPackage" files=".*runners.flink.*FlinkCapabilities\.java"/>
   <suppress checks="JavadocPackage" files=".*runners.flink.*ProcessingTimeCallbackCompat\.java"/>
   <suppress checks="JavadocPackage" files=".*runners.flink.*StreamingTranslatorsUtil\.java"/>
+  <suppress checks="JavadocPackage" files=".*runners.flink.*DoFnOperator\.java"/>
 
   <!-- Spark Structured Streaming -->
   <!-- list of version specific classes -->
