@@ -95,6 +95,10 @@ include(":runners:flink:1.17:job-server-container")
 include(":runners:flink:1.18")
 include(":runners:flink:1.18:job-server")
 include(":runners:flink:1.18:job-server-container")
+// Flink 1.20
+include(":runners:flink:1.20")
+include(":runners:flink:1.20:job-server")
+include(":runners:flink:1.20:job-server-container")
 /* End Flink Runner related settings */
 //include(":runners:twister2")
 //include(":runners:google-cloud-dataflow-java")
