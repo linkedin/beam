@@ -61,6 +61,7 @@ tasks.all { task ->
     task.mustRunAfter(":runners:java-fn-execution:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":runners:samza:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":runners:flink:1.17:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
+    task.mustRunAfter(":runners:flink:1.18:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":runners:flink:1.20:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":runners:spark:2:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
     task.mustRunAfter(":runners:spark:3:publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository")
