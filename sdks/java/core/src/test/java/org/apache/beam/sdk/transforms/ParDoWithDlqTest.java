@@ -68,55 +68,59 @@ public class ParDoWithDlqTest implements Serializable {
   @Test
   public void testWithDlqReturnedFromParDoOf() {
     CapturingDlqSink<Integer> sink = new CapturingDlqSink<>();
-    ParDoWithDlq<Integer, Integer> transform = ParDo.of(new PassThroughFn()).withDlq(sink);
-    assertNotNull(transform);
+    assertNotNull(ParDo.of(new PassThroughFn()).withDlq(sink));
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testGetFnReturnsSameFn() {
     PassThroughFn fn = new PassThroughFn();
-    ParDoWithDlq<Integer, Integer> transform =
-        ParDo.of(fn).withDlq(new CapturingDlqSink<>());
+    ParDoWithDlqSpec<Integer, Integer> transform =
+        (ParDoWithDlqSpec<Integer, Integer>) ParDo.of(fn).withDlq(new CapturingDlqSink<>());
     assertSame(fn, transform.getFn());
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testGetDlqSinkReturnsSameSink() {
     CapturingDlqSink<Integer> sink = new CapturingDlqSink<>();
-    ParDoWithDlq<Integer, Integer> transform = ParDo.of(new PassThroughFn()).withDlq(sink);
+    ParDoWithDlqSpec<Integer, Integer> transform =
+        (ParDoWithDlqSpec<Integer, Integer>) ParDo.of(new PassThroughFn()).withDlq(sink);
     assertSame(sink, transform.getDlqSink());
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testDlqFilterIsNullByDefault() {
-    ParDoWithDlq<Integer, Integer> transform =
-        ParDo.of(new PassThroughFn()).withDlq(new CapturingDlqSink<>());
+    ParDoWithDlqSpec<Integer, Integer> transform =
+        (ParDoWithDlqSpec<Integer, Integer>) ParDo.of(new PassThroughFn()).withDlq(new CapturingDlqSink<>());
     assertNull(transform.getDlqFilter());
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testWithDlqFilterSetsFilter() {
     SerializableFunction<Throwable, Boolean> filter = t -> t instanceof IllegalArgumentException;
-    ParDoWithDlq<Integer, Integer> transform =
-        ParDo.of(new PassThroughFn())
-            .withDlq(new CapturingDlqSink<>())
-            .withDlqFilter(filter);
+    ParDoWithDlqSpec<Integer, Integer> transform =
+        (ParDoWithDlqSpec<Integer, Integer>) ParDo.of(new PassThroughFn())
+            .withDlq(new CapturingDlqSink<>(), filter);
     assertSame(filter, transform.getDlqFilter());
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testWithDlqFilterPreservesFnAndSink() {
     PassThroughFn fn = new PassThroughFn();
     CapturingDlqSink<Integer> sink = new CapturingDlqSink<>();
-    ParDoWithDlq<Integer, Integer> transform =
-        ParDo.of(fn).withDlq(sink).withDlqFilter(t -> true);
+    ParDoWithDlqSpec<Integer, Integer> transform =
+        (ParDoWithDlqSpec<Integer, Integer>) ParDo.of(fn).withDlq(sink, t -> true);
     assertSame(fn, transform.getFn());
     assertSame(sink, transform.getDlqSink());
   }
 
   @Test
   public void testUrnConstant() {
-    assertEquals("beam:transform:li:pardo_with_dlq:v1", ParDoWithDlq.URN);
+    assertEquals("beam:transform:li:pardo_with_dlq:v1", ParDoWithDlqSpec.URN);
   }
 
   @Test(expected = IllegalArgumentException.class)
@@ -126,7 +130,7 @@ public class ParDoWithDlqTest implements Serializable {
 
   @Test(expected = IllegalArgumentException.class)
   public void testWithDlqFilterRejectsNullFilter() {
-    ParDo.of(new PassThroughFn()).withDlq(new CapturingDlqSink<>()).withDlqFilter(null);
+    ParDo.of(new PassThroughFn()).withDlq(new CapturingDlqSink<>(), null);
   }
 
   // ---------------------------------------------------------------------------

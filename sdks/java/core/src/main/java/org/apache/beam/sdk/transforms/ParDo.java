@@ -788,21 +788,40 @@ public class ParDo {
     }
 
     /**
-     * Returns a {@link ParDoWithDlq} that routes elements whose {@code @ProcessElement} throws to
-     * the given {@link DlqSink} instead of crashing the pipeline.
+     * Returns a transform that routes elements whose {@code @ProcessElement} throws to the given
+     * {@link DlqSink} instead of crashing the pipeline.
      *
      * <p>The returned transform produces a {@link PCollection} of successfully processed elements
      * only. Failed elements are written to the sink by the Flink runner — no side output or
      * {@link org.apache.beam.sdk.values.TupleTag} is visible to the caller.
      *
-     * <p>Use {@link ParDoWithDlq#withDlqFilter} to restrict which exception types are routed to
-     * the DLQ; non-matching exceptions re-throw and crash the pipeline.
+     * <p>To restrict which exception types are routed to the DLQ, use
+     * {@link #withDlq(DlqSink, SerializableFunction)}; non-matching exceptions re-throw and crash
+     * the pipeline.
      *
      * <p>Only supported in the Flink runner.
      */
-    public ParDoWithDlq<InputT, OutputT> withDlq(DlqSink<InputT> dlqSink) {
+    public PTransform<PCollection<? extends InputT>, PCollection<OutputT>> withDlq(
+        DlqSink<InputT> dlqSink) {
       checkArgument(dlqSink != null, "dlqSink must not be null");
       return new ParDoWithDlq<>(fn, dlqSink, null);
+    }
+
+    /**
+     * Returns a transform that routes elements whose {@code @ProcessElement} throws to the given
+     * {@link DlqSink}, filtered by the given predicate.
+     *
+     * <p>Only exceptions for which {@code dlqFilter} returns {@code true} are routed to the DLQ;
+     * others re-throw and crash the pipeline.
+     *
+     * <p>Only supported in the Flink runner.
+     */
+    public PTransform<PCollection<? extends InputT>, PCollection<OutputT>> withDlq(
+        DlqSink<InputT> dlqSink,
+        SerializableFunction<Throwable, Boolean> dlqFilter) {
+      checkArgument(dlqSink != null, "dlqSink must not be null");
+      checkArgument(dlqFilter != null, "dlqFilter must not be null");
+      return new ParDoWithDlq<>(fn, dlqSink, dlqFilter);
     }
 
     @Override
