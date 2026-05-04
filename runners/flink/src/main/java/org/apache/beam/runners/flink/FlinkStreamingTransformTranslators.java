@@ -613,9 +613,14 @@ class FlinkStreamingTransformTranslators {
             producer != null
                 ? PTransformTranslation.urnForTransformOrNull(context.getProducer(input))
                 : null;
-        // We can skip reshuffle in case previous transform was CPK or GBK
+        // We can skip reshuffle in case previous transform was CPK or GBK,
+        // or if the caller asserts input is already correctly key-partitioned.
         if (PTransformTranslation.COMBINE_PER_KEY_TRANSFORM_URN.equals(previousUrn)
-            || PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN.equals(previousUrn)) {
+            || PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN.equals(previousUrn)
+            || context
+                .getPipelineOptions()
+                .as(FlinkPipelineOptions.class)
+                .getSkipReshuffleForParDo()) {
           inputDataStream = DataStreamUtils.reinterpretAsKeyedStream(inputDataStream, keySelector);
         } else {
           inputDataStream = inputDataStream.keyBy(keySelector);
