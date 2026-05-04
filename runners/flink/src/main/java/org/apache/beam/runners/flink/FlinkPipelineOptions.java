@@ -305,6 +305,18 @@ public interface FlinkPipelineOptions
 
   void setFlinkConfDir(String confDir);
 
+  @Description(
+      "When true, stateful ParDo operators use DataStreamUtils.reinterpretAsKeyedStream() instead"
+          + " of DataStream.keyBy(), eliminating the HASH network exchange before stateful DoFns."
+          + " Requires that every input PCollection is already correctly key-partitioned by the"
+          + " Flink-compatible hash function (Kafka producer must use a MurmurHash3-aligned"
+          + " partitioner matching Flink's KvToByteBufferKeySelector). Incorrect alignment causes"
+          + " silent state corruption.")
+  @Default.Boolean(false)
+  Boolean getSkipReshuffleForParDo();
+
+  void setSkipReshuffleForParDo(Boolean value);
+
   static FlinkPipelineOptions defaults() {
     return PipelineOptionsFactory.as(FlinkPipelineOptions.class);
   }
