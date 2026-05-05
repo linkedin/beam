@@ -67,6 +67,7 @@ applyJavaNature(
         exclude(dependency(it.getModuleGroup() + ":" + it.getModuleName() + ":.*"))
       }
     }
+    relocate 'org.apache.datasketches', getJavaRelocatedPath('org.apache.datasketches')
   },
 )
 
