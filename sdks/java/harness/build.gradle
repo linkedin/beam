@@ -66,6 +66,11 @@ applyJavaNature(
           .getLenientConfiguration().getAllModuleDependencies().each {
         exclude(dependency(it.getModuleGroup() + ":" + it.getModuleName() + ":.*"))
       }
+      // Exclude build-only dependencies that should not be bundled in the jar
+      exclude(dependency('junit:junit:.*'))
+      exclude(dependency('org.hamcrest:.*:.*'))
+      exclude(dependency('org.checkerframework:.*:.*'))
+      exclude(dependency('io.github.classgraph:classgraph:.*'))
     }
     relocate 'org.apache.datasketches', getJavaRelocatedPath('org.apache.datasketches')
   },
