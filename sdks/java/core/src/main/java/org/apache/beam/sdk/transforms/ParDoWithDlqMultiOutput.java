@@ -30,6 +30,10 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Immutabl
  *
  * @param <InputT> the input element type
  */
+@SuppressWarnings({
+  "nullness", // matches the suppression on ParDo (TODO: apache/beam#20497)
+  "rawtypes"
+})
 class ParDoWithDlqMultiOutput<InputT>
     extends PTransform<PCollection<? extends InputT>, PCollectionTuple>
     implements ParDoWithDlqMultiOutputSpec<InputT> {
