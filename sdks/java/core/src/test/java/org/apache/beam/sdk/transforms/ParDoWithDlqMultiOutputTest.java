@@ -7,9 +7,22 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.Map;
+import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.testing.CrashingRunner;
+import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PCollectionTuple;
+import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.PCollectionViews;
+import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
+import org.apache.beam.sdk.values.TypeDescriptors;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -25,6 +38,12 @@ import org.junit.runners.JUnit4;
  */
 @RunWith(JUnit4.class)
 public class ParDoWithDlqMultiOutputTest implements Serializable {
+
+  // expand()/getAdditionalInputs() are inspected without running, so abandoned-node
+  // enforcement is disabled.
+  @Rule
+  public final transient TestPipeline pipeline =
+      TestPipeline.create().enableAbandonedNodeEnforcement(false);
 
   // ---------------------------------------------------------------------------
   // Test helpers
@@ -194,5 +213,74 @@ public class ParDoWithDlqMultiOutputTest implements Serializable {
     ParDo.of(new PassThroughMultiOutputFn())
         .withOutputTags(mainTag, TupleTagList.empty())
         .withDlq(new CapturingDlqSink<>(), null);
+  }
+
+  // ---------------------------------------------------------------------------
+  // expand() — coder / type-descriptor propagation (the core of this change)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The common idiom: an anonymous multi-output DoFn with a raw main tag. The per-tag coder loop
+   * cannot resolve the raw main tag (no type info), so {@code expand} must fall back to the DoFn's
+   * output {@link org.apache.beam.sdk.values.TypeDescriptor} on the main output (which lets later
+   * coder inference succeed). Typed additional tags get their coder resolved directly in the loop.
+   */
+  @Test
+  public void testExpandResolvesMainTypeDescriptorAndAdditionalTagCoder() {
+    DoFn<Integer, String> fn =
+        new DoFn<Integer, String>() {
+          @ProcessElement
+          public void processElement(@Element Integer in) {}
+        };
+    TupleTag<String> rawMainTag = new TupleTag<>(); // raw → type-erased
+    TupleTag<String> typedSideTag = new TupleTag<String>("side") {}; // type-captured
+
+    PTransform<PCollection<? extends Integer>, PCollectionTuple> transform =
+        ParDo.of(fn)
+            .withOutputTags(rawMainTag, TupleTagList.of(typedSideTag))
+            .withDlq(new CapturingDlqSink<>());
+
+    PCollection<Integer> input = pipeline.apply(Create.of(1, 2, 3));
+    PCollectionTuple outputs = transform.expand(input);
+
+    // Main tag is raw: getCoder() can't be resolved in the loop, but the fallback recovers the
+    // type from the DoFn so downstream inference no longer fails (the bug this PR fixes).
+    assertEquals(TypeDescriptors.strings(), outputs.get(rawMainTag).getTypeDescriptor());
+    // Type-captured additional tag: coder resolved directly by the per-tag loop.
+    assertTrue(outputs.get(typedSideTag).getCoder() instanceof StringUtf8Coder);
+  }
+
+  /**
+   * Side inputs threaded through {@code .withDlq(...)} must be declared via {@code
+   * getAdditionalInputs()} so the runner translates the view-producing subgraph first.
+   */
+  @Test
+  public void testGetAdditionalInputsDeclaresSideInputs() {
+    PCollectionView<Integer> view = pipeline.apply("side", Create.of(1)).apply(View.asSingleton());
+    TupleTag<Integer> mainTag = new TupleTag<Integer>("main") {};
+
+    PTransform<PCollection<? extends Integer>, PCollectionTuple> transform =
+        ParDo.of(new PassThroughMultiOutputFn())
+            .withOutputTags(mainTag, TupleTagList.empty())
+            .withSideInputs(view)
+            .withDlq(new CapturingDlqSink<>());
+
+    Map<TupleTag<?>, PValue> additionalInputs = transform.getAdditionalInputs();
+    assertEquals(
+        PCollectionViews.toAdditionalInputs(Collections.singletonList(view)), additionalInputs);
+  }
+
+  /** {@code .withDlq(...)} is Flink-only; validate() must reject other runners. */
+  @Test(expected = IllegalStateException.class)
+  public void testValidateRejectsNonFlinkRunner() {
+    TupleTag<Integer> mainTag = new TupleTag<Integer>("main") {};
+    PTransform<PCollection<? extends Integer>, PCollectionTuple> transform =
+        ParDo.of(new PassThroughMultiOutputFn())
+            .withOutputTags(mainTag, TupleTagList.empty())
+            .withDlq(new CapturingDlqSink<>());
+
+    PipelineOptions options = PipelineOptionsFactory.create();
+    options.setRunner(CrashingRunner.class);
+    transform.validate(options);
   }
 }

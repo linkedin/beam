@@ -11,6 +11,8 @@ import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.PCollectionViews;
+import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
@@ -85,6 +87,22 @@ class ParDoWithDlqMultiOutput<InputT>
     return sideInputs;
   }
 
+  /**
+   * Declares the side-input views this transform consumes, mirroring {@link
+   * ParDo.MultiOutput#getAdditionalInputs}.
+   *
+   * <p>Because {@link #expand} only emits primitive outputs and never applies an inner {@code
+   * ParDo}, the side-input views are not referenced anywhere in the visible graph. This override is
+   * how the runner's topological traversal learns the transform consumes those views and must
+   * translate the view-producing subgraph first; without it a multi-output {@code .withDlq(...)}
+   * with side inputs risks the consuming operator being translated before its side-input stream
+   * exists.
+   */
+  @Override
+  public Map<TupleTag<?>, PValue> getAdditionalInputs() {
+    return PCollectionViews.toAdditionalInputs(sideInputs.values());
+  }
+
   @Override
   public DlqSink<InputT> getDlqSink() {
     return dlqSink;
@@ -139,6 +157,13 @@ class ParDoWithDlqMultiOutput<InputT>
         // ParDo.MultiOutput's expand behavior.
       }
     }
+    // Mirror the final step of ParDo.MultiOutput.expand: the fn is typically an anonymous subclass
+    // (e.g. new DoFn<Integer, String>(){...}) carrying a high-fidelity output TypeDescriptor.
+    // Setting it on the main output recovers coder inference for the common idiom of a raw main tag
+    // (new TupleTag<>()), where out.getTypeDescriptor() above is null and the per-tag getCoder()
+    // could not resolve a coder — without this the main output is left with no coder and downstream
+    // applies throw "Unable to return a default Coder", the exact failure this PR fixes.
+    ((PCollection) outputs.get(mainOutputTag)).setTypeDescriptor(fn.getOutputTypeDescriptor());
     return outputs;
   }
 }
