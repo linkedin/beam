@@ -975,6 +975,46 @@ public class ParDo {
       return withSideInputs(Collections.singletonMap(tagId, pCollectionView));
     }
 
+    /**
+     * Returns a transform that routes elements whose {@code @ProcessElement} throws to the given
+     * {@link DlqSink}.
+     *
+     * <p>Success-path elements continue to flow to the main and additional output tags as
+     * usual; the returned transform's output {@link PCollectionTuple} has the same shape as
+     * this {@link MultiOutput}'s. Failed elements are written to the sink by the Flink runner —
+     * no extra side output or {@link TupleTag} is added to the user-facing tuple.
+     *
+     * <p>To restrict which exception types are routed to the DLQ, use
+     * {@link #withDlq(DlqSink, SerializableFunction)}; non-matching exceptions re-throw and
+     * crash the pipeline.
+     *
+     * <p>Only supported in the Flink runner.
+     */
+    public PTransform<PCollection<? extends InputT>, PCollectionTuple> withDlq(
+        DlqSink<InputT> dlqSink) {
+      checkArgument(dlqSink != null, "dlqSink must not be null");
+      return new ParDoWithDlqMultiOutput<>(
+          fn, mainOutputTag, additionalOutputTags, sideInputs, dlqSink, null);
+    }
+
+    /**
+     * Returns a transform that routes elements whose {@code @ProcessElement} throws to the given
+     * {@link DlqSink}, filtered by the given predicate.
+     *
+     * <p>Only exceptions for which {@code dlqFilter} returns {@code true} are routed to the DLQ;
+     * others re-throw and crash the pipeline.
+     *
+     * <p>Only supported in the Flink runner.
+     */
+    public PTransform<PCollection<? extends InputT>, PCollectionTuple> withDlq(
+        DlqSink<InputT> dlqSink,
+        SerializableFunction<Throwable, Boolean> dlqFilter) {
+      checkArgument(dlqSink != null, "dlqSink must not be null");
+      checkArgument(dlqFilter != null, "dlqFilter must not be null");
+      return new ParDoWithDlqMultiOutput<>(
+          fn, mainOutputTag, additionalOutputTags, sideInputs, dlqSink, dlqFilter);
+    }
+
     @Override
     public PCollectionTuple expand(PCollection<? extends InputT> input) {
       // SplittableDoFn should be forbidden on the runner-side.
