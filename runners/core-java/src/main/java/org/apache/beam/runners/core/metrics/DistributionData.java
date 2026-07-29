@@ -247,8 +247,10 @@ public class DistributionData implements Serializable {
     try {
       if (sketch.isPresent() && otherSketch.isPresent() && sketch.get().getN() > 0) {
         final DoublesUnion union = new DoublesUnionBuilder().build();
-        union.update(sketch.get());
-        union.update(otherSketch.get());
+        // datasketches 6.x renamed DoublesUnion.update(DoublesSketch) to union(DoublesSketch);
+        // update(double) now adds a single value. Semantics of the merge are unchanged.
+        union.union(sketch.get());
+        union.union(otherSketch.get());
         sketch = Optional.of(union.getResult());
       } else if (otherSketch.isPresent()) {
         sketch = otherSketch;
