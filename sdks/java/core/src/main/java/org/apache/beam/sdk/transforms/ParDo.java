@@ -787,6 +787,37 @@ public class ParDo {
       return new MultiOutput<>(fn, sideInputs, mainOutputTag, additionalOutputTags, fnDisplayData);
     }
 
+    /**
+     * Returns a transform that routes elements whose {@code @ProcessElement} throws to the given
+     * {@link DlqSink} instead of crashing the pipeline.
+     *
+     * <p>The returned transform produces a {@link PCollection} of successfully processed elements
+     * only. Failed elements are written to the sink by the Flink runner.
+     *
+     * <p>Only supported in the Flink runner.
+     */
+    public PTransform<PCollection<? extends InputT>, PCollection<OutputT>> withDlq(
+        DlqSink<InputT> dlqSink) {
+      checkArgument(dlqSink != null, "dlqSink must not be null");
+      return new ParDoWithDlq<>(fn, dlqSink, null);
+    }
+
+    /**
+     * Returns a transform that routes elements whose {@code @ProcessElement} throws to the given
+     * {@link DlqSink}, filtered by the given predicate.
+     *
+     * <p>Only exceptions for which {@code dlqFilter} returns {@code true} are routed to the DLQ;
+     * others re-throw and crash the pipeline.
+     *
+     * <p>Only supported in the Flink runner.
+     */
+    public PTransform<PCollection<? extends InputT>, PCollection<OutputT>> withDlq(
+        DlqSink<InputT> dlqSink, SerializableFunction<Throwable, Boolean> dlqFilter) {
+      checkArgument(dlqSink != null, "dlqSink must not be null");
+      checkArgument(dlqFilter != null, "dlqFilter must not be null");
+      return new ParDoWithDlq<>(fn, dlqSink, dlqFilter);
+    }
+
     @Override
     public PCollection<OutputT> expand(PCollection<? extends InputT> input) {
       SchemaRegistry schemaRegistry = input.getPipeline().getSchemaRegistry();
@@ -936,6 +967,40 @@ public class ParDo {
     public MultiOutput<InputT, OutputT> withSideInput(
         String tagId, PCollectionView<?> pCollectionView) {
       return withSideInputs(Collections.singletonMap(tagId, pCollectionView));
+    }
+
+    /**
+     * Returns a transform that routes elements whose {@code @ProcessElement} throws to the given
+     * {@link DlqSink}.
+     *
+     * <p>Success-path elements continue to flow to the main and additional output tags as usual;
+     * the returned transform's output {@link PCollectionTuple} has the same shape as this {@link
+     * MultiOutput}'s. Failed elements are written to the sink by the Flink runner.
+     *
+     * <p>Only supported in the Flink runner.
+     */
+    public PTransform<PCollection<? extends InputT>, PCollectionTuple> withDlq(
+        DlqSink<InputT> dlqSink) {
+      checkArgument(dlqSink != null, "dlqSink must not be null");
+      return new ParDoWithDlqMultiOutput<>(
+          fn, mainOutputTag, additionalOutputTags, sideInputs, dlqSink, null);
+    }
+
+    /**
+     * Returns a transform that routes elements whose {@code @ProcessElement} throws to the given
+     * {@link DlqSink}, filtered by the given predicate.
+     *
+     * <p>Only exceptions for which {@code dlqFilter} returns {@code true} are routed to the DLQ;
+     * others re-throw and crash the pipeline.
+     *
+     * <p>Only supported in the Flink runner.
+     */
+    public PTransform<PCollection<? extends InputT>, PCollectionTuple> withDlq(
+        DlqSink<InputT> dlqSink, SerializableFunction<Throwable, Boolean> dlqFilter) {
+      checkArgument(dlqSink != null, "dlqSink must not be null");
+      checkArgument(dlqFilter != null, "dlqFilter must not be null");
+      return new ParDoWithDlqMultiOutput<>(
+          fn, mainOutputTag, additionalOutputTags, sideInputs, dlqSink, dlqFilter);
     }
 
     @Override
