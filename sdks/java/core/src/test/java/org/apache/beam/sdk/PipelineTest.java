@@ -53,7 +53,9 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.Max;
+import org.apache.beam.sdk.transforms.OverridablePTransform;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.transforms.PTransformOverrideRegistrar;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.transforms.Sum;
@@ -117,6 +119,28 @@ public class PipelineTest {
     @Override
     public PipelineResult run(Pipeline pipeline) {
       throw new IllegalStateException("SDK exception");
+    }
+  }
+
+  static class OriginalOverridableTransform extends PTransform<PBegin, PCollection<String>>
+      implements OverridablePTransform<PBegin, PCollection<String>> {
+
+    @Override
+    public String getTag() {
+      return "test-transform";
+    }
+
+    @Override
+    public PCollection<String> expand(PBegin input) {
+      throw new AssertionError("Original transform should have been replaced");
+    }
+  }
+
+  static class RegisteredReplacementTransform extends PTransform<PBegin, PCollection<String>> {
+
+    @Override
+    public PCollection<String> expand(PBegin input) {
+      return input.apply(Create.of("replacement"));
     }
   }
 
@@ -201,6 +225,20 @@ public class PipelineTest {
                   }
                 }));
     p.run();
+  }
+
+  @Test
+  public void testApplyUsesRegisteredTransformOverride() {
+    PTransformOverrideRegistrar.register("test-transform", new RegisteredReplacementTransform());
+    try {
+      PipelineOptions options = PipelineOptionsFactory.create();
+      options.setRunner(CrashingRunner.class);
+      Pipeline p = Pipeline.create(options);
+      PCollection<String> output = p.apply(new OriginalOverridableTransform());
+      assertThat(output, Matchers.notNullValue());
+    } finally {
+      PTransformOverrideRegistrar.clear();
+    }
   }
 
   @Test
