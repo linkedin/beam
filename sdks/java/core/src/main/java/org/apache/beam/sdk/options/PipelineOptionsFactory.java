@@ -318,6 +318,13 @@ public class PipelineOptionsFactory {
      * @return An object that implements {@code <T>}.
      */
     public <T extends PipelineOptions> T as(Class<T> klass) {
+      RunnerPipelineOptionsFactory runnerPipelineOptionsFactory =
+          RunnerPipelineOptionsFactory.getFactory();
+      if (runnerPipelineOptionsFactory != null
+          && RunnerPipelineOptionsFactory.findFactoryCaller() == null) {
+        return runnerPipelineOptionsFactory.getPipelineOptions(args, klass);
+      }
+
       Map<String, Object> initialOptions = Maps.newHashMap();
 
       // Attempt to parse the arguments into the set of initial options to use
