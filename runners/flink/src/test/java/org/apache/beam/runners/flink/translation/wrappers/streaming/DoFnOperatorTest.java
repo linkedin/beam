@@ -52,6 +52,7 @@ import org.apache.beam.runners.core.StepContext;
 import org.apache.beam.runners.core.TimerInternals;
 import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
+import org.apache.beam.runners.flink.FlinkSubtaskContextAware;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
 import org.apache.beam.runners.flink.translation.types.CoderTypeSerializer;
@@ -178,6 +179,48 @@ public class DoFnOperatorTest {
     assertThat(
         stripStreamRecordFromWindowedValue(testHarness.getOutput()),
         contains(WindowedValue.valueInGlobalWindow("Hello")));
+
+    testHarness.close();
+  }
+
+  @Test
+  public void testFlinkSubtaskContextIsInjectedIntoOpenDoFn() throws Exception {
+
+    Coder<WindowedValue<String>> coder = WindowedValue.getValueOnlyCoder(StringUtf8Coder.of());
+
+    TupleTag<String> outputTag = new TupleTag<>("main-output");
+
+    SubtaskContextRecordingDoFn<String> recordingDoFn = new SubtaskContextRecordingDoFn<>();
+
+    DoFnOperator<String, String> doFnOperator =
+        new DoFnOperator<>(
+            recordingDoFn,
+            "stepName",
+            coder,
+            Collections.emptyMap(),
+            outputTag,
+            Collections.emptyList(),
+            new DoFnOperator.MultiOutputOutputManagerFactory<>(
+                outputTag, coder, new SerializablePipelineOptions(FlinkPipelineOptions.defaults())),
+            WindowingStrategy.globalDefault(),
+            new HashMap<>(), /* side-input mapping */
+            Collections.emptyList(), /* side inputs */
+            FlinkPipelineOptions.defaults(),
+            null,
+            null,
+            DoFnSchemaInformation.create(),
+            Collections.emptyMap());
+
+    // maxParallelism=4, numSubtasks=4, subtaskIndex=2 -- deliberately not subtask 0, so a
+    // hard-coded/default value would not accidentally make this test pass.
+    OneInputStreamOperatorTestHarness<WindowedValue<String>, WindowedValue<String>> testHarness =
+        new OneInputStreamOperatorTestHarness<>(doFnOperator, 4, 4, 2);
+
+    testHarness.open();
+
+    assertThat(recordingDoFn.recordedSubtaskIndex, is(2));
+    assertThat(recordingDoFn.recordedParallelism, is(4));
+    assertThat(recordingDoFn.recordedMaxParallelism, is(4));
 
     testHarness.close();
   }
@@ -2370,6 +2413,32 @@ public class DoFnOperatorTest {
   }
 
   private static class IdentityDoFn<T> extends DoFn<T, T> {
+
+    @ProcessElement
+    public void processElement(ProcessContext c) {
+      c.output(c.element());
+    }
+  }
+
+  /**
+   * A {@link DoFn} that records whatever {@link FlinkSubtaskContextAware#setFlinkSubtaskContext} is
+   * called with, so the test can assert it matches what the operator/harness were configured with.
+   */
+  private static class SubtaskContextRecordingDoFn<T> extends DoFn<T, T>
+      implements FlinkSubtaskContextAware {
+
+    // Not relevant to serialization -- only read/written on the single test thread that also
+    // constructs the harness, well before/after any (de)serialization boundary.
+    private transient int recordedSubtaskIndex = -1;
+    private transient int recordedParallelism = -1;
+    private transient int recordedMaxParallelism = -1;
+
+    @Override
+    public void setFlinkSubtaskContext(int subtaskIndex, int parallelism, int maxParallelism) {
+      this.recordedSubtaskIndex = subtaskIndex;
+      this.recordedParallelism = parallelism;
+      this.recordedMaxParallelism = maxParallelism;
+    }
 
     @ProcessElement
     public void processElement(ProcessContext c) {

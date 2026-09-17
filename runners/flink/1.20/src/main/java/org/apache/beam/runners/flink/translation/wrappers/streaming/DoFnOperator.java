@@ -56,6 +56,7 @@ import org.apache.beam.runners.core.TimerInternals;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
+import org.apache.beam.runners.flink.FlinkSubtaskContextAware;
 import org.apache.beam.runners.flink.metrics.DoFnRunnerWithMetricsUpdate;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainer;
 import org.apache.beam.runners.flink.metrics.GlobalMetricsUtils;
@@ -491,6 +492,18 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
     // So must wait StateInternals and TimerInternals ready.
     // This will be called after initializeState()
     this.doFn = getDoFn();
+
+    // LI-SPECIFIC change: give any DoFn that opts in (by implementing
+    // FlinkSubtaskContextAware) visibility into its own physical placement, so it can
+    // independently detect misrouted/misaligned records (e.g. alongside
+    // SkipShufflePartitionGuard) without needing runner-internal access itself.
+    if (doFn instanceof FlinkSubtaskContextAware) {
+      ((FlinkSubtaskContextAware) doFn)
+          .setFlinkSubtaskContext(
+              getRuntimeContext().getIndexOfThisSubtask(),
+              getRuntimeContext().getNumberOfParallelSubtasks(),
+              getRuntimeContext().getMaxNumberOfParallelSubtasks());
+    }
 
     FlinkPipelineOptions options = serializedOptions.get().as(FlinkPipelineOptions.class);
     doFnInvoker = DoFnInvokers.tryInvokeSetupFor(doFn, options);
