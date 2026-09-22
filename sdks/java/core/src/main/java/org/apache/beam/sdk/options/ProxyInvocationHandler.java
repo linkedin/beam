@@ -61,6 +61,7 @@ import org.apache.beam.sdk.options.PipelineOptionsFactory.AnnotationPredicates;
 import org.apache.beam.sdk.options.PipelineOptionsFactory.Registration;
 import org.apache.beam.sdk.options.ValueProvider.RuntimeValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
+import org.apache.beam.sdk.testing.PropertyCustomizationHandler;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.transforms.display.HasDisplayData;
 import org.apache.beam.sdk.util.InstanceBuilder;
@@ -205,7 +206,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     } else if (args != null && "as".equals(method.getName()) && args[0] instanceof Class) {
       @SuppressWarnings("unchecked")
       Class<? extends PipelineOptions> clazz = (Class<? extends PipelineOptions>) args[0];
-      return as(clazz);
+      return as(clazz, (PipelineOptions) proxy);
     } else if (args != null
         && "populateDisplayData".equals(method.getName())
         && args[0] instanceof DisplayData.Builder) {
@@ -223,19 +224,30 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
       // more properties
       // to be evaluated, and computeIfAbsent is not re-entrant.
       if (!options.containsKey(propertyName)) {
-        // Lazy bind the default to the method.
-        Object value =
-            jsonOptions.containsKey(propertyName)
-                ? getValueFromJson(propertyName, method)
-                : getDefault((PipelineOptions) proxy, method);
-        options.put(propertyName, BoundValue.fromDefault(value));
+        PropertyCustomizationHandler handler = PropertyCustomizationHandler.get();
+        if (handler != null
+            && handler.isCustomizationEnabled()
+            && handler.containsProperty(method, propertyName)) {
+          options.put(
+              propertyName,
+              BoundValue.fromExplicitOption(handler.getProperty(method, propertyName)));
+        } else {
+          // Lazy bind the default to the method.
+          Object value =
+              jsonOptions.containsKey(propertyName)
+                  ? getValueFromJson(propertyName, method)
+                  : getDefault((PipelineOptions) proxy, method);
+          options.put(propertyName, BoundValue.fromDefault(value));
+        }
       }
       return options.get(propertyName).getValue();
     } else if (properties.settersToPropertyNames.containsKey(methodName)) {
-      BoundValue prev =
-          options.put(
-              properties.settersToPropertyNames.get(methodName),
-              BoundValue.fromExplicitOption(args[0]));
+      String propertyName = properties.settersToPropertyNames.get(methodName);
+      PropertyCustomizationHandler handler = PropertyCustomizationHandler.get();
+      if (handler != null && handler.isCustomizationEnabled()) {
+        handler.setProperty(method, propertyName, args[0]);
+      }
+      BoundValue prev = options.put(propertyName, BoundValue.fromExplicitOption(args[0]));
       if (prev == null ? args[0] != null : !Objects.equals(args[0], prev.getValue())) {
         revision.incrementAndGet();
       }
@@ -315,6 +327,53 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
           computedProperties =
               computedProperties.updated(iface, existingOption, propertyDescriptors);
         }
+      }
+    }
+    return existingOption;
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  private <T extends PipelineOptions> T as(
+      Class<T> iface, @Nullable PipelineOptions pipelineOptions) {
+    checkArgumentNotNull(iface);
+    checkArgument(iface.isInterface(), "Not an interface: %s", iface);
+
+    CustomPipelineOptionsInitializer initializer =
+        pipelineOptions == null ? null : CustomPipelineOptionsInitializer.get();
+    if (initializer == null) {
+      return as(iface);
+    }
+
+    T existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
+    if (existingOption == null) {
+      Registration<T> registration =
+          PipelineOptionsFactory.CACHE
+              .get()
+              .validateWellFormed(iface, computedProperties.knownInterfaces);
+
+      Class<T> proxyClass = registration.getProxyClass();
+
+      T newOption =
+          InstanceBuilder.ofType(proxyClass)
+              .fromClass(proxyClass)
+              .withArg(InvocationHandler.class, this)
+              .build();
+
+      newOption = (T) initializer.init(newOption, iface);
+
+      synchronized (this) {
+        existingOption = computedProperties.interfaceToProxyCache.getInstance(iface);
+        if (existingOption != null) {
+          return existingOption;
+        }
+        Registration<T> currentRegistration =
+            PipelineOptionsFactory.CACHE
+                .get()
+                .validateWellFormed(iface, computedProperties.knownInterfaces);
+        computedProperties =
+            computedProperties.updated(
+                iface, newOption, currentRegistration.getPropertyDescriptors());
+        existingOption = newOption;
       }
     }
     return existingOption;
