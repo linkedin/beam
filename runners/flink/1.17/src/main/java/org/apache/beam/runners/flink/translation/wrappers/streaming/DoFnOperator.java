@@ -230,6 +230,9 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
   /** Metrics container for reporting Beam metrics to Flink (null if metrics are disabled). */
   transient @Nullable FlinkMetricContainer flinkMetricContainer;
 
+  /** Whether {@link #finish()} flushed all data, which only happens once the input has ended. */
+  private transient boolean finished;
+
   /** Helper class to report the checkpoint duration. */
   private transient @Nullable CheckpointStats checkpointStats;
 
@@ -606,11 +609,24 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
   }
 
   void cleanUp() throws Exception {
-    Optional.ofNullable(flinkMetricContainer)
-        .ifPresent(FlinkMetricContainer::registerMetricsForPipelineResult);
+    if (shouldRegisterMetricsForPipelineResult()) {
+      Optional.ofNullable(flinkMetricContainer)
+          .ifPresent(FlinkMetricContainer::registerMetricsForPipelineResult);
+    }
     Optional.ofNullable(checkFinishBundleTimer).ifPresent(timer -> timer.cancel(true));
     Workarounds.deleteStaticCaches();
     Optional.ofNullable(doFnInvoker).ifPresent(DoFnInvoker::invokeTeardown);
+  }
+
+  /**
+   * The metrics accumulator hands final totals to the program that launched the pipeline once the
+   * pipeline has ended. {@link #close()} also runs when the task is cancelled, which in streaming
+   * mode happens on every failover without the pipeline ending. Copying the metrics there is
+   * unnecessary and makes every JobManager status request merge and render the full metric state of
+   * each cancelled subtask. In streaming mode, only copy them once the input has ended.
+   */
+  private boolean shouldRegisterMetricsForPipelineResult() {
+    return finished || !serializedOptions.get().as(FlinkPipelineOptions.class).isStreaming();
   }
 
   void flushData() throws Exception {
@@ -659,6 +675,7 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
   public void finish() throws Exception {
     try {
       flushData();
+      finished = true;
     } finally {
       super.finish();
     }
