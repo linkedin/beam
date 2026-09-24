@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.nullValue;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Coder;
@@ -61,6 +62,8 @@ import org.junit.runners.JUnit4;
 /** Tests for {@link GreedyPipelineFuser}. */
 @RunWith(JUnit4.class)
 public class GreedyPipelineFuserTest {
+  private static final String CUSTOM_URN = "beam:li:test:custom:v1";
+
   // Contains the 'go' and 'py' environments, and a default 'impulse' step and output.
   private Components partialComponents;
 
@@ -93,6 +96,88 @@ public class GreedyPipelineFuserTest {
         .setCoderId("coder")
         .setWindowingStrategyId("ws")
         .build();
+  }
+
+  @Test
+  public void overrideFusibilityCheckerForCustomUrn() {
+    PTransform customTransform =
+        PTransform.newBuilder()
+            .setUniqueName("Custom")
+            .putInputs("input", "impulse.out")
+            .putOutputs("output", "custom.out")
+            .setSpec(FunctionSpec.newBuilder().setUrn(CUSTOM_URN))
+            .setEnvironmentId("go")
+            .build();
+    Components components =
+        partialComponents
+            .toBuilder()
+            .putTransforms("custom", customTransform)
+            .putPcollections("custom.out", pc("custom.out"))
+            .build();
+    QueryablePipeline pipeline = QueryablePipeline.forPrimitivesIn(components);
+    PTransformNode customNode = PipelineNode.pTransform("custom", customTransform);
+    PCollectionNode candidate =
+        PipelineNode.pCollection("impulse.out", components.getPcollectionsOrThrow("impulse.out"));
+    AtomicBoolean invoked = new AtomicBoolean();
+
+    GreedyPCollectionFusers.overrideFusibilityChecker(
+        CUSTOM_URN,
+        (transformNode, environment, candidateNode, stagePCollections, queryablePipeline) -> {
+          invoked.set(true);
+          assertThat(transformNode, equalTo(customNode));
+          assertThat(environment, equalTo(components.getEnvironmentsOrThrow("go")));
+          assertThat(candidateNode, equalTo(candidate));
+          assertThat(queryablePipeline, equalTo(pipeline));
+          return true;
+        });
+
+    assertThat(
+        GreedyPCollectionFusers.canFuse(
+            customNode,
+            components.getEnvironmentsOrThrow("go"),
+            candidate,
+            java.util.Collections.singleton(candidate),
+            pipeline),
+        equalTo(true));
+    assertThat(invoked.get(), equalTo(true));
+  }
+
+  @Test
+  public void overrideCompatibilityCheckerForCustomUrn() {
+    PTransform leftTransform =
+        PTransform.newBuilder()
+            .setUniqueName("Left")
+            .setSpec(FunctionSpec.newBuilder().setUrn(CUSTOM_URN))
+            .setEnvironmentId("go")
+            .build();
+    PTransform rightTransform =
+        PTransform.newBuilder()
+            .setUniqueName("Right")
+            .setSpec(FunctionSpec.newBuilder().setUrn(CUSTOM_URN))
+            .setEnvironmentId("go")
+            .build();
+    Components components =
+        partialComponents
+            .toBuilder()
+            .putTransforms("left", leftTransform)
+            .putTransforms("right", rightTransform)
+            .build();
+    QueryablePipeline pipeline = QueryablePipeline.forPrimitivesIn(components);
+    PTransformNode leftNode = PipelineNode.pTransform("left", leftTransform);
+    PTransformNode rightNode = PipelineNode.pTransform("right", rightTransform);
+    AtomicBoolean invoked = new AtomicBoolean();
+
+    GreedyPCollectionFusers.overrideCompatibilityChecker(
+        CUSTOM_URN,
+        (newNode, otherNode, queryablePipeline) -> {
+          invoked.set(true);
+          assertThat(queryablePipeline, equalTo(pipeline));
+          return GreedyPCollectionFusers.compatibleEnvironments(
+              newNode, otherNode, queryablePipeline);
+        });
+
+    assertThat(GreedyPCollectionFusers.isCompatible(leftNode, rightNode, pipeline), equalTo(true));
+    assertThat(invoked.get(), equalTo(true));
   }
 
   /*
