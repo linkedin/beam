@@ -906,6 +906,39 @@ public class AvroUtilsTest {
   }
 
   @Test
+  public void testNestedNullableFieldInUnionRecord() {
+    String avroSchemaJson =
+        "{"
+            + "\"name\" : \"test\","
+            + "\"type\" : \"record\","
+            + "\"fields\" : ["
+            + "{\"name\" : \"Entity\","
+            + " \"type\" : ["
+            + " {\"type\" : \"record\","
+            + "  \"name\" : \"MemberClient\","
+            + "  \"fields\" : ["
+            + "   {\"name\" : \"member\","
+            + "    \"type\" : \"string\"}]"
+            + " },"
+            + " {\"type\" : \"record\","
+            + "  \"name\" : \"OrganizationClient\","
+            + "  \"fields\" : ["
+            + "    {\"name\" : \"organization\","
+            + "     \"type\" : \"string\"},"
+            + "    {\"name\" : \"displayName\","
+            + "     \"type\" : [ \"null\", \"string\" ]}]"
+            + " }]}"
+            + "]}";
+
+    org.apache.avro.Schema avroSchema = new org.apache.avro.Schema.Parser().parse(avroSchemaJson);
+    Schema beamSchema = AvroUtils.toBeamSchema(avroSchema);
+    org.apache.avro.Schema convertedSchema = AvroUtils.toAvroSchema(beamSchema);
+
+    assertEquals(
+        org.apache.avro.Schema.Type.UNION, convertedSchema.getField("Entity").schema().getType());
+  }
+
+  @Test
   public void testJdbcLogicalVarCharRowDataToAvroSchema() {
     String expectedAvroSchemaJson =
         "{ "
