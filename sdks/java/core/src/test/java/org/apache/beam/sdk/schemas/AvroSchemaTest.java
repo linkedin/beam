@@ -259,6 +259,15 @@ public class AvroSchemaTest {
           .build();
   private static final FieldType SUB_TYPE = FieldType.row(SUBSCHEMA).withNullable(true);
 
+  // The POJO path derives its schema by reflection, which Avro 1.9+ orders by Java field name
+  // (anInt, boolNonNullable). The SpecificRecord path above keeps the .avsc declaration order.
+  private static final Schema POJO_SUBSCHEMA =
+      Schema.builder()
+          .addNullableField("int", FieldType.INT32)
+          .addField("BOOL_NON_NULLABLE", FieldType.BOOLEAN)
+          .build();
+  private static final FieldType POJO_SUB_TYPE = FieldType.row(POJO_SUBSCHEMA).withNullable(true);
+
   private static final EnumerationType TEST_ENUM_TYPE = EnumerationType.create("abc", "cde");
 
   private static final Schema SCHEMA =
@@ -279,28 +288,39 @@ public class AvroSchemaTest {
           .addNullableField("map", FieldType.map(FieldType.STRING, SUB_TYPE))
           .build();
 
+  // Avro 1.9+ derives reflect schemas with a deterministic field order (sorted by Java field
+  // name) instead of the JVM-dependent declaration order used by Avro 1.8. The field set is
+  // unchanged; only the order differs. Note this shifts Beam Row encoding positions for
+  // POJO-derived Avro schemas.
   private static final Schema POJO_SCHEMA =
       Schema.builder()
-          .addField("bool_non_nullable", FieldType.BOOLEAN)
-          .addNullableField("int", FieldType.INT32)
-          .addNullableField("long", FieldType.INT64)
-          .addNullableField("float", FieldType.FLOAT)
           .addNullableField("double", FieldType.DOUBLE)
-          .addNullableField("string", FieldType.STRING)
+          .addNullableField("float", FieldType.FLOAT)
+          .addNullableField("long", FieldType.INT64)
+          .addNullableField("int", FieldType.INT32)
+          .addNullableField("array", FieldType.array(POJO_SUB_TYPE.withNullable(false)))
+          .addField("bool_non_nullable", FieldType.BOOLEAN)
           .addNullableField("bytes", FieldType.BYTES)
-          .addField("fixed", FieldType.logicalType(FixedBytes.of(4)))
           .addField("date", FieldType.DATETIME)
-          .addField("timestampMillis", FieldType.DATETIME)
+          .addField("fixed", FieldType.logicalType(FixedBytes.of(4)))
+          .addNullableField(
+              "map", FieldType.map(FieldType.STRING, POJO_SUB_TYPE.withNullable(false)))
+          .addNullableField("row", POJO_SUB_TYPE)
+          .addNullableField("string", FieldType.STRING)
           .addField("testEnum", FieldType.logicalType(TEST_ENUM_TYPE))
-          .addNullableField("row", SUB_TYPE)
-          .addNullableField("array", FieldType.array(SUB_TYPE.withNullable(false)))
-          .addNullableField("map", FieldType.map(FieldType.STRING, SUB_TYPE.withNullable(false)))
+          .addField("timestampMillis", FieldType.DATETIME)
           .build();
 
   private static final byte[] BYTE_ARRAY = new byte[] {1, 2, 3, 4};
   private static final DateTime DATE_TIME =
       new DateTime().withDate(1979, 3, 14).withTime(1, 2, 3, 4);
   private static final LocalDate DATE = new LocalDate(1979, 3, 14);
+  // Avro 1.9+ generates java.time types for date/timestamp logical types, so the
+  // SpecificRecord constructor needs java.time values. The Joda constants above
+  // remain the expected values on the Beam-schema side of each assertion.
+  private static final java.time.LocalDate AVRO_DATE = java.time.LocalDate.of(1979, 3, 14);
+  private static final java.time.Instant AVRO_DATE_TIME =
+      java.time.Instant.ofEpochMilli(DATE_TIME.getMillis());
   private static final TestAvroNested AVRO_NESTED_SPECIFIC_RECORD = new TestAvroNested(true, 42);
   private static final TestAvro AVRO_SPECIFIC_RECORD =
       new TestAvro(
@@ -312,8 +332,8 @@ public class AvroSchemaTest {
           "mystring",
           ByteBuffer.wrap(BYTE_ARRAY),
           new fixed4(BYTE_ARRAY),
-          DATE,
-          DATE_TIME,
+          AVRO_DATE,
+          AVRO_DATE_TIME,
           TestEnum.abc,
           AVRO_NESTED_SPECIFIC_RECORD,
           ImmutableList.of(AVRO_NESTED_SPECIFIC_RECORD, AVRO_NESTED_SPECIFIC_RECORD),
@@ -350,6 +370,8 @@ public class AvroSchemaTest {
           .build();
 
   private static final Row NESTED_ROW = Row.withSchema(SUBSCHEMA).addValues(true, 42).build();
+  private static final Row POJO_NESTED_ROW =
+      Row.withSchema(POJO_SUBSCHEMA).addValues(42, true).build();
   private static final Row ROW =
       Row.withSchema(SCHEMA)
           .addValues(
@@ -425,23 +447,24 @@ public class AvroSchemaTest {
           ImmutableList.of(SUB_POJO, SUB_POJO),
           ImmutableMap.of("k1", SUB_POJO, "k2", SUB_POJO));
 
+  // Values must track POJO_SCHEMA's field order (sorted by Java field name under Avro 1.9+).
   private static final Row ROW_FOR_POJO =
       Row.withSchema(POJO_SCHEMA)
           .addValues(
-              true,
-              43,
-              44L,
-              (float) 44.1,
-              (double) 44.2,
-              "mystring",
-              ByteBuffer.wrap(BYTE_ARRAY),
-              BYTE_ARRAY,
-              DATE.toDateTimeAtStartOfDay(DateTimeZone.UTC),
-              DATE_TIME,
-              TEST_ENUM_TYPE.valueOf("abc"),
-              NESTED_ROW,
-              ImmutableList.of(NESTED_ROW, NESTED_ROW),
-              ImmutableMap.of("k1", NESTED_ROW, "k2", NESTED_ROW))
+              (double) 44.2, // double
+              (float) 44.1, // float
+              44L, // long
+              43, // int
+              ImmutableList.of(POJO_NESTED_ROW, POJO_NESTED_ROW), // array
+              true, // bool_non_nullable
+              ByteBuffer.wrap(BYTE_ARRAY), // bytes
+              DATE.toDateTimeAtStartOfDay(DateTimeZone.UTC), // date
+              BYTE_ARRAY, // fixed
+              ImmutableMap.of("k1", POJO_NESTED_ROW, "k2", POJO_NESTED_ROW), // map
+              POJO_NESTED_ROW, // row
+              "mystring", // string
+              TEST_ENUM_TYPE.valueOf("abc"), // testEnum
+              DATE_TIME) // timestampMillis
           .build();
 
   @Test
