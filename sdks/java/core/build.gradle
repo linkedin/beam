@@ -90,6 +90,7 @@ dependencies {
   shadow library.java.jackson_databind
   shadow library.java.slf4j_api
   shadow library.java.avro
+  shadow library.java.xz
   shadow library.java.snappy_java
   shadow library.java.joda_time
   implementation enforcedPlatform(library.java.google_cloud_platform_libraries_bom)

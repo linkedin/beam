@@ -28,6 +28,7 @@ import static org.junit.Assert.fail;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.JavaSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
@@ -85,7 +86,6 @@ import org.hamcrest.Matchers;
 import org.hamcrest.TypeSafeMatcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.LocalDate;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -112,8 +112,9 @@ public class AvroCoderTest {
           "mystring",
           ByteBuffer.wrap(new byte[] {1, 2, 3, 4}),
           new fixed4(new byte[] {1, 2, 3, 4}),
-          new LocalDate(1979, 3, 14),
-          new DateTime().withDate(1979, 3, 14).withTime(1, 2, 3, 4),
+          java.time.LocalDate.of(1979, 3, 14),
+          java.time.Instant.ofEpochMilli(
+              new DateTime().withDate(1979, 3, 14).withTime(1, 2, 3, 4).getMillis()),
           TestEnum.abc,
           AVRO_NESTED_SPECIFIC_RECORD,
           ImmutableList.of(AVRO_NESTED_SPECIFIC_RECORD, AVRO_NESTED_SPECIFIC_RECORD),
@@ -283,12 +284,17 @@ public class AvroCoderTest {
 
     // Kryo instantiation
     Kryo kryo = new Kryo();
+    kryo.setRegistrationRequired(false);
     kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
+    // Avro 1.9+ gives JsonProperties an instance-level immutable `reserved` Set that Kryo
+    // cannot rebuild. Delegate the schema supplier to Java serialization, which is what it
+    // is designed for. Matches upstream Beam 2.75.
+    kryo.addDefaultSerializer(AvroCoder.SerializableSchemaSupplier.class, JavaSerializer.class);
 
     // Serialization of object without any memoization
     ByteArrayOutputStream coderWithoutMemoizationBos = new ByteArrayOutputStream();
     try (Output output = new Output(coderWithoutMemoizationBos)) {
-      kryo.writeObject(output, coder);
+      kryo.writeClassAndObject(output, coder);
     }
 
     // Force thread local memoization to store values.
@@ -297,18 +303,18 @@ public class AvroCoderTest {
     // Serialization of object with memoized fields
     ByteArrayOutputStream coderWithMemoizationBos = new ByteArrayOutputStream();
     try (Output output = new Output(coderWithMemoizationBos)) {
-      kryo.writeObject(output, coder);
+      kryo.writeClassAndObject(output, coder);
     }
 
     // Copy empty and memoized variants of the Coder
     ByteArrayInputStream bisWithoutMemoization =
         new ByteArrayInputStream(coderWithoutMemoizationBos.toByteArray());
     AvroCoder<Pojo> copiedWithoutMemoization =
-        (AvroCoder<Pojo>) kryo.readObject(new Input(bisWithoutMemoization), AvroCoder.class);
+        (AvroCoder<Pojo>) kryo.readClassAndObject(new Input(bisWithoutMemoization));
     ByteArrayInputStream bisWithMemoization =
         new ByteArrayInputStream(coderWithMemoizationBos.toByteArray());
     AvroCoder<Pojo> copiedWithMemoization =
-        (AvroCoder<Pojo>) kryo.readObject(new Input(bisWithMemoization), AvroCoder.class);
+        (AvroCoder<Pojo>) kryo.readClassAndObject(new Input(bisWithMemoization));
 
     CoderProperties.coderDecodeEncodeEqual(copiedWithoutMemoization, value);
     CoderProperties.coderDecodeEncodeEqual(copiedWithMemoization, value);
@@ -350,11 +356,12 @@ public class AvroCoderTest {
       AvroCoder.of(Pojo.class, false);
       fail("When userReclectApi is disable, schema should not be generated through reflection");
     } catch (AvroRuntimeException e) {
-      String message =
-          "avro.shaded.com.google.common.util.concurrent.UncheckedExecutionException: "
-              + "org.apache.avro.AvroRuntimeException: "
-              + "Not a Specific class: class org.apache.beam.sdk.coders.AvroCoderTest$Pojo";
-      assertEquals(message, e.getMessage());
+      // Avro 1.9+ dropped its shaded Guava, so the exception is no longer wrapped in
+      // avro.shaded...UncheckedExecutionException. Assert on the meaningful part only.
+      assertThat(
+          e.getMessage(),
+          containsString(
+              "Not a Specific class: class org.apache.beam.sdk.coders.AvroCoderTest$Pojo"));
     }
   }
 

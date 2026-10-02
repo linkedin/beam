@@ -159,24 +159,33 @@ dependencies {
   implementation project(":runners:core-construction-java")
   implementation project(":runners:java-fn-execution")
   implementation project(":runners:java-job-service")
-  implementation project(":sdks:java:extensions:google-cloud-platform-core")
   implementation library.java.vendored_grpc_1_48_1
   implementation library.java.slf4j_api
   implementation library.java.joda_time
   implementation library.java.args4j
 
-  // flink-core-api is introduced in Flink 1.20+
-  if (flink_major == '1.20' || flink_major.startsWith('2')) {
-    implementation "org.apache.flink:flink-core-api:$flink_version"
+  // flink-core declares commons-compress 1.21 (CVE-2024-25710, CVE-2024-26308).
+  // Flink reaches it only through the compressed FileInputFormat factories
+  // (Bzip2/XZ/ZStandard InputStreamFactory), which Beam pipelines never use.
+  // Drop the edge from every Flink module so the vulnerable coordinate leaves
+  // the published dependency graph; Beam's own patched commons-compress still
+  // provides the classes via sdks:java:core.
+  def excludeCommonsCompress = {
+    exclude group: "org.apache.commons", module: "commons-compress"
   }
 
-  implementation "org.apache.flink:flink-clients:$flink_version"
+  // flink-core-api is introduced in Flink 1.20+
+  if (flink_major == '1.20' || flink_major.startsWith('2')) {
+    implementation("org.apache.flink:flink-core-api:$flink_version", excludeCommonsCompress)
+  }
+
+  implementation("org.apache.flink:flink-clients:$flink_version", excludeCommonsCompress)
   // Runtime dependencies are not included in Beam's generated pom.xml, so we must declare flink-clients in implementation
   // configuration (https://issues.apache.org/jira/browse/BEAM-11732).
   permitUnusedDeclared "org.apache.flink:flink-clients:$flink_version"
 
-  implementation "org.apache.flink:flink-streaming-java:$flink_version"
-  implementation "org.apache.flink:flink-table:$flink_version"
+  implementation("org.apache.flink:flink-streaming-java:$flink_version", excludeCommonsCompress)
+  implementation("org.apache.flink:flink-table:$flink_version", excludeCommonsCompress)
   // RocksDB state backend (included in the Flink distribution)
   provided "org.apache.flink:flink-statebackend-rocksdb:$flink_version"
   testImplementation "org.apache.flink:flink-statebackend-rocksdb:$flink_version"
@@ -188,13 +197,13 @@ dependencies {
 
   miniCluster "org.apache.flink:flink-runtime-web:$flink_version"
 
-  implementation "org.apache.flink:flink-core:$flink_version"
+  implementation("org.apache.flink:flink-core:$flink_version", excludeCommonsCompress)
   implementation "org.apache.flink:flink-metrics-core:$flink_version"
-  implementation "org.apache.flink:flink-java:$flink_version"
+  implementation("org.apache.flink:flink-java:$flink_version", excludeCommonsCompress)
 
-  implementation "org.apache.flink:flink-runtime:$flink_version"
+  implementation("org.apache.flink:flink-runtime:$flink_version", excludeCommonsCompress)
   implementation "org.apache.flink:flink-metrics-core:$flink_version"
-  implementation "org.apache.flink:flink-optimizer:$flink_version"
+  implementation("org.apache.flink:flink-optimizer:$flink_version", excludeCommonsCompress)
   testImplementation "org.apache.flink:flink-runtime:$flink_version:tests"
   testImplementation "org.apache.flink:flink-rpc-akka:$flink_version"
   testImplementation project(path: ":sdks:java:core", configuration: "shadowTest")

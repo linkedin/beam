@@ -398,7 +398,7 @@ class BeamModulePlugin implements Plugin<Project> {
 
     // Automatically use the official release version if we are performing a release
     // otherwise append '-SNAPSHOT'
-    project.version = '2.45.60'
+    project.version = '2.45.61'
     if (isLinkedin(project)) {
       project.ext.mavenGroupId = 'com.linkedin.beam'
     }
@@ -473,7 +473,7 @@ class BeamModulePlugin implements Plugin<Project> {
     def cassandra_driver_version = "3.10.2"
     def cdap_version = "6.5.1"
     def checkerframework_version = "3.27.0"
-    def classgraph_version = "4.8.104"
+    def classgraph_version = "4.8.179"
     def dbcp2_version = "2.8.0"
     def errorprone_version = "2.10.0"
     // Try to keep gax_version consistent with gax-grpc version in google_cloud_platform_libraries_bom
@@ -492,7 +492,7 @@ class BeamModulePlugin implements Plugin<Project> {
     def influxdb_version = "2.19"
     def httpclient_version = "4.5.13"
     def httpcore_version = "4.4.14"
-    def jackson_version = "2.14.1"
+    def jackson_version = "2.19.2"
     def jaxb_api_version = "2.3.3"
     def jsr305_version = "3.0.2"
     def everit_json_version = "1.14.1"
@@ -536,8 +536,8 @@ class BeamModulePlugin implements Plugin<Project> {
         antlr_runtime                               : "org.antlr:antlr4-runtime:4.7",
         args4j                                      : "args4j:args4j:2.33",
         auto_value_annotations                      : "com.google.auto.value:auto-value-annotations:$autovalue_version",
-        avro                                        : "org.apache.avro:avro:1.8.2",
-        avro_tests                                  : "org.apache.avro:avro:1.8.2:tests",
+        avro                                        : "org.apache.avro:avro:1.11.4",
+        avro_tests                                  : "org.apache.avro:avro:1.11.3:tests",
         aws_java_sdk_cloudwatch                     : "com.amazonaws:aws-java-sdk-cloudwatch:$aws_java_sdk_version",
         aws_java_sdk_core                           : "com.amazonaws:aws-java-sdk-core:$aws_java_sdk_version",
         aws_java_sdk_dynamodb                       : "com.amazonaws:aws-java-sdk-dynamodb:$aws_java_sdk_version",
@@ -579,12 +579,12 @@ class BeamModulePlugin implements Plugin<Project> {
         cdap_plugin_zendesk                         : "io.cdap.plugin:zendesk-plugins:1.0.0",
         checker_qual                                : "org.checkerframework:checker-qual:$checkerframework_version",
         classgraph                                  : "io.github.classgraph:classgraph:$classgraph_version",
-        commons_codec                               : "commons-codec:commons-codec:1.15",
+        commons_codec                               : "commons-codec:commons-codec:1.17.1",
         commons_collections                         : "commons-collections:commons-collections:3.2.2",
-        commons_compress                            : "org.apache.commons:commons-compress:1.21",
+        commons_compress                            : "org.apache.commons:commons-compress:1.27.1",
         commons_csv                                 : "org.apache.commons:commons-csv:1.8",
-        commons_io                                  : "commons-io:commons-io:2.7",
-        commons_lang3                               : "org.apache.commons:commons-lang3:3.9",
+        commons_io                                  : "commons-io:commons-io:2.16.1",
+        commons_lang3                               : "org.apache.commons:commons-lang3:3.18.0",
         commons_logging                             : "commons-logging:commons-logging:1.2",
         commons_math3                               : "org.apache.commons:commons-math3:3.6.1",
         datasketches                                : "org.apache.datasketches:datasketches-java:6.1.1",
@@ -740,7 +740,7 @@ class BeamModulePlugin implements Plugin<Project> {
         slf4j_jul_to_slf4j                          : "org.slf4j:jul-to-slf4j:$slf4j_version",
         slf4j_log4j12                               : "org.slf4j:slf4j-log4j12:$slf4j_version",
         slf4j_jcl                                   : "org.slf4j:slf4j-jcl:$slf4j_version",
-        snappy_java                                 : "org.xerial.snappy:snappy-java:1.1.8.4",
+        snappy_java                                 : "org.xerial.snappy:snappy-java:1.1.10.7",
         spark_core                                  : "org.apache.spark:spark-core_2.11:$spark2_version",
         spark_network_common                        : "org.apache.spark:spark-network-common_2.11:$spark2_version",
         spark_sql                                   : "org.apache.spark:spark-sql_2.11:$spark2_version",
@@ -764,6 +764,9 @@ class BeamModulePlugin implements Plugin<Project> {
         vendored_guava_26_0_jre                     : "org.apache.beam:beam-vendor-guava-26_0-jre:0.1",
         vendored_calcite_1_28_0                     : "org.apache.beam:beam-vendor-calcite-1_28_0:0.2",
         woodstox_core_asl                           : "org.codehaus.woodstox:woodstox-core-asl:4.4.1",
+        // Avro 1.9+ marks xz optional, so it no longer arrives transitively.
+        // Declared explicitly to keep the xz codec working as it did under Avro 1.8.
+        xz                                          : "org.tukaani:xz:1.10",
         zstd_jni                                    : "com.github.luben:zstd-jni:1.5.2-5",
         quickcheck_core                             : "com.pholser:junit-quickcheck-core:$quickcheck_version",
         quickcheck_generators                       : "com.pholser:junit-quickcheck-generators:$quickcheck_version",
@@ -2278,7 +2281,7 @@ class BeamModulePlugin implements Plugin<Project> {
 
     // TODO: Decide whether this should be inlined into the one project that relies on it
     // or be left here.
-    project.ext.applyAvroNature = { project.apply plugin: "com.commercehub.gradle.plugin.avro" }
+    project.ext.applyAvroNature = { project.apply plugin: "com.github.davidmc24.gradle.plugin.avro" }
 
     project.ext.applyAntlrNature = {
       project.apply plugin: 'antlr'
