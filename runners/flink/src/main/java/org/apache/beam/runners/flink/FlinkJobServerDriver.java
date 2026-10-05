@@ -18,7 +18,6 @@
 package org.apache.beam.runners.flink;
 
 import org.apache.beam.runners.jobsubmission.JobServerDriver;
-import org.apache.beam.sdk.extensions.gcp.options.GcsOptions;
 import org.apache.beam.sdk.fn.server.ServerFactory;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -70,8 +69,6 @@ public class FlinkJobServerDriver extends JobServerDriver {
   public static void main(String[] args) throws Exception {
     // TODO: Expose the fileSystem related options.
     PipelineOptions options = PipelineOptionsFactory.create();
-    // Limiting gcs upload buffer to reduce memory usage while doing parallel artifact uploads.
-    options.as(GcsOptions.class).setGcsUploadBufferSizeBytes(1024 * 1024);
     // Register standard file systems.
     FileSystems.setDefaultPipelineOptions(options);
     fromParams(args).run();
