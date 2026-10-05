@@ -317,6 +317,23 @@ public interface FlinkPipelineOptions
 
   void setSkipReshuffleForParDo(Boolean value);
 
+  @Description(
+      "Controls how the runtime guard backing skipReshuffleForParDo"
+          + " reacts when it detects a misaligned record (one that arrived at a subtask other than"
+          + " the one a real HASH exchange on its key would have routed it to). When false"
+          + " (default), the guard fails the job fast with a clear exception -- the safest choice"
+          + " for surfacing a genuine upstream partitioning bug immediately. When true, the guard"
+          + " instead logs the violation, increments the 'skipShufflePartitionGuardDroppedRecords'"
+          + " metric, and drops just the offending record, letting the job keep running. This"
+          + " trades strict correctness (a dropped record is data loss) for availability, and"
+          + " should only be enabled once the parity/soak validation for the option has confirmed"
+          + " misaligned records are rare/transient rather than a systemic partitioning bug --"
+          + " otherwise this can mask a bug that is silently dropping a large fraction of traffic.")
+  @Default.Boolean(false)
+  Boolean getSkipShuffleGuardDropMisalignedRecords();
+
+  void setSkipShuffleGuardDropMisalignedRecords(Boolean value);
+
   static FlinkPipelineOptions defaults() {
     return PipelineOptionsFactory.as(FlinkPipelineOptions.class);
   }

@@ -168,6 +168,16 @@ Should be called before running the tests.
   <td>Default: <code>-1</code></td>
 </tr>
 <tr>
+  <td><code>skip_reshuffle_for_par_do</code></td>
+  <td>When true, stateful ParDo operators use DataStreamUtils.reinterpretAsKeyedStream() instead of DataStream.keyBy(), eliminating the HASH network exchange before stateful DoFns. Requires that every input PCollection is already correctly key-partitioned by the Flink-compatible hash function (Kafka producer must use a MurmurHash3-aligned partitioner matching Flink's KvToByteBufferKeySelector). Incorrect alignment causes silent state corruption.</td>
+  <td>Default: <code>false</code></td>
+</tr>
+<tr>
+  <td><code>skip_shuffle_guard_drop_misaligned_records</code></td>
+  <td>Controls how the runtime guard backing skipReshuffleForParDo reacts when it detects a misaligned record (one that arrived at a subtask other than the one a real HASH exchange on its key would have routed it to). When false (default), the guard fails the job fast with a clear exception -- the safest choice for surfacing a genuine upstream partitioning bug immediately. When true, the guard instead logs the violation, increments the 'skipShufflePartitionGuardDroppedRecords' metric, and drops just the offending record, letting the job keep running. This trades strict correctness (a dropped record is data loss) for availability, and should only be enabled once the parity/soak validation for the option has confirmed misaligned records are rare/transient rather than a systemic partitioning bug -- otherwise this can mask a bug that is silently dropping a large fraction of traffic.</td>
+  <td>Default: <code>false</code></td>
+</tr>
+<tr>
   <td><code>state_backend</code></td>
   <td>State backend to store Beam's state. Use 'rocksdb' or 'filesystem'.</td>
   <td></td>
