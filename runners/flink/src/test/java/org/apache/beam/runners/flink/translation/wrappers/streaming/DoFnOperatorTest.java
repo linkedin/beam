@@ -2343,18 +2343,72 @@ public class DoFnOperatorTest {
 
     testHarness.open();
 
-    String metricContainerFieldName = "flinkMetricContainer";
-    FlinkMetricContainer monitoredContainer =
-        Mockito.spy(
-            (FlinkMetricContainer)
-                Whitebox.getInternalState(doFnOperator, metricContainerFieldName));
-    Whitebox.setInternalState(doFnOperator, metricContainerFieldName, monitoredContainer);
+    FlinkMetricContainer monitoredContainer = spyOnMetricContainer(doFnOperator);
 
     // Closes and disposes the operator
     testHarness.close();
     // Ensure that dispose has the metrics code
     doFnOperator.cleanUp();
     Mockito.verify(monitoredContainer, Mockito.times(2)).registerMetricsForPipelineResult();
+  }
+
+  @Test
+  public void testAccumulatorRegistrationOnCancelInBatch() throws Exception {
+    DoFnOperator<String, String, String> doFnOperator = getOperatorForCleanupInspection();
+    OneInputStreamOperatorTestHarness<WindowedValue<String>, WindowedValue<String>> testHarness =
+        new OneInputStreamOperatorTestHarness<>(doFnOperator);
+
+    testHarness.open();
+
+    FlinkMetricContainer monitoredContainer = spyOnMetricContainer(doFnOperator);
+
+    // Closes the operator without finishing it, as when the task is cancelled.
+    doFnOperator.close();
+    Mockito.verify(monitoredContainer).registerMetricsForPipelineResult();
+  }
+
+  @Test
+  public void testAccumulatorRegistrationAfterFinishInStreaming() throws Exception {
+    FlinkPipelineOptions options = FlinkPipelineOptions.defaults();
+    options.setStreaming(true);
+    DoFnOperator<String, String, String> doFnOperator = getOperatorForCleanupInspection(options);
+    OneInputStreamOperatorTestHarness<WindowedValue<String>, WindowedValue<String>> testHarness =
+        new OneInputStreamOperatorTestHarness<>(doFnOperator);
+
+    testHarness.open();
+
+    FlinkMetricContainer monitoredContainer = spyOnMetricContainer(doFnOperator);
+
+    // Finishes and closes the operator, as when the input has ended.
+    testHarness.close();
+    Mockito.verify(monitoredContainer).registerMetricsForPipelineResult();
+  }
+
+  @Test
+  public void testNoAccumulatorRegistrationOnCancelInStreaming() throws Exception {
+    FlinkPipelineOptions options = FlinkPipelineOptions.defaults();
+    options.setStreaming(true);
+    DoFnOperator<String, String, String> doFnOperator = getOperatorForCleanupInspection(options);
+    OneInputStreamOperatorTestHarness<WindowedValue<String>, WindowedValue<String>> testHarness =
+        new OneInputStreamOperatorTestHarness<>(doFnOperator);
+
+    testHarness.open();
+
+    FlinkMetricContainer monitoredContainer = spyOnMetricContainer(doFnOperator);
+
+    // Closes the operator without finishing it, as when the task is cancelled.
+    doFnOperator.close();
+    Mockito.verify(monitoredContainer, Mockito.never()).registerMetricsForPipelineResult();
+  }
+
+  private static FlinkMetricContainer spyOnMetricContainer(DoFnOperator<?, ?, ?> doFnOperator) {
+    String metricContainerFieldName = "flinkMetricContainer";
+    FlinkMetricContainer monitoredContainer =
+        Mockito.spy(
+            (FlinkMetricContainer)
+                Whitebox.getInternalState(doFnOperator, metricContainerFieldName));
+    Whitebox.setInternalState(doFnOperator, metricContainerFieldName, monitoredContainer);
+    return monitoredContainer;
   }
 
   /**
@@ -2374,7 +2428,11 @@ public class DoFnOperatorTest {
   }
 
   private static DoFnOperator<String, String, String> getOperatorForCleanupInspection() {
-    FlinkPipelineOptions options = FlinkPipelineOptions.defaults();
+    return getOperatorForCleanupInspection(FlinkPipelineOptions.defaults());
+  }
+
+  private static DoFnOperator<String, String, String> getOperatorForCleanupInspection(
+      FlinkPipelineOptions options) {
     options.setParallelism(4);
 
     TupleTag<String> outputTag = new TupleTag<>("main-output");
