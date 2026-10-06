@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,19 +40,26 @@ import org.apache.beam.runners.core.metrics.MonitoringInfoMetricName;
 import org.apache.beam.runners.core.metrics.SimpleMonitoringInfoBuilder;
 import org.apache.beam.runners.flink.metrics.FlinkMetricContainerBase.FlinkDistributionGauge;
 import org.apache.beam.sdk.metrics.Counter;
+import org.apache.beam.sdk.metrics.DelegatingCounter;
+import org.apache.beam.sdk.metrics.DelegatingDistribution;
+import org.apache.beam.sdk.metrics.DelegatingGauge;
 import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.DistributionResult;
 import org.apache.beam.sdk.metrics.Gauge;
 import org.apache.beam.sdk.metrics.GaugeResult;
 import org.apache.beam.sdk.metrics.MetricKey;
 import org.apache.beam.sdk.metrics.MetricName;
+import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.metrics.MetricsContainer;
+import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableList;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -72,6 +80,11 @@ public class FlinkMetricContainerTest {
         .thenReturn(new MetricsAccumulator());
     when(runtimeContext.getMetricGroup()).thenReturn(metricGroup);
     container = new FlinkMetricContainer(runtimeContext);
+  }
+
+  @After
+  public void afterTest() {
+    MetricsEnvironment.setProcessWideContainer(null);
   }
 
   @Test
@@ -95,6 +108,91 @@ public class FlinkMetricContainerTest {
     assertThat(flinkCounter.getCount(), is(0L));
     container.updateMetrics("step");
     assertThat(flinkCounter.getCount(), is(2L));
+  }
+
+  @Test
+  public void testProcessWideMetrics() {
+    SimpleCounter flinkCounter = new SimpleCounter();
+    when(metricGroup.counter("global.counter")).thenReturn(flinkCounter);
+    when(metricGroup.gauge(eq("global.gauge"), any()))
+        .thenAnswer(invocation -> invocation.getArgument(1));
+    when(metricGroup.gauge(eq("global.distribution"), any()))
+        .thenAnswer(invocation -> invocation.getArgument(1));
+
+    Counter counter = new DelegatingCounter(MetricName.named("global", "counter"), true);
+    Gauge gauge = new DelegatingGauge(MetricName.named("global", "gauge"), true);
+    Distribution distribution =
+        new DelegatingDistribution(MetricName.named("global", "distribution"), true);
+    counter.inc(5);
+    gauge.set(3);
+    distribution.update(11);
+    distribution.update(13);
+    MetricsContainerImpl processWideContainer =
+        (MetricsContainerImpl) MetricsEnvironment.getProcessWideContainer();
+    assertThat(
+        processWideContainer
+            .getGauge(MetricName.named("global", "gauge"))
+            .getCumulative()
+            .extractResult()
+            .getValue(),
+        is(3L));
+
+    container.updateMetrics("step");
+    assertThat(flinkCounter.getCount(), is(5L));
+    ArgumentCaptor<FlinkMetricContainerBase.FlinkGauge> gaugeCaptor =
+        ArgumentCaptor.forClass(FlinkMetricContainerBase.FlinkGauge.class);
+    ArgumentCaptor<FlinkDistributionGauge> distributionCaptor =
+        ArgumentCaptor.forClass(FlinkDistributionGauge.class);
+    verify(metricGroup).gauge(eq("global.gauge"), gaugeCaptor.capture());
+    verify(metricGroup).gauge(eq("global.distribution"), distributionCaptor.capture());
+    FlinkMetricContainerBase.FlinkGauge flinkGauge = gaugeCaptor.getValue();
+    FlinkDistributionGauge flinkDistributionGauge = distributionCaptor.getValue();
+    assertThat(flinkGauge.getValue(), is(3L));
+    assertThat(flinkDistributionGauge.getValue(), is(DistributionResult.create(24, 2, 11, 13)));
+
+    container.updateMetrics("step");
+    assertThat(flinkCounter.getCount(), is(5L));
+    assertThat(flinkGauge.getValue(), is(3L));
+    assertThat(flinkDistributionGauge.getValue(), is(DistributionResult.create(24, 2, 11, 13)));
+
+    counter.inc(2);
+    gauge.set(4);
+    distribution.update(17);
+    container.updateMetrics("step");
+    assertThat(flinkCounter.getCount(), is(7L));
+    assertThat(flinkGauge.getValue(), is(4L));
+    assertThat(flinkDistributionGauge.getValue(), is(DistributionResult.create(41, 3, 11, 17)));
+  }
+
+  @Test
+  public void testProcessWideMetricsArePublishedOnlyByOwningContainer() {
+    RuntimeContext otherRuntimeContext = org.mockito.Mockito.mock(RuntimeContext.class);
+    OperatorMetricGroup otherMetricGroup = org.mockito.Mockito.mock(OperatorMetricGroup.class);
+    when(otherRuntimeContext.<MetricsContainerStepMap, MetricsContainerStepMap>getAccumulator(
+            anyString()))
+        .thenReturn(new MetricsAccumulator());
+    when(otherRuntimeContext.getMetricGroup()).thenReturn(otherMetricGroup);
+    FlinkMetricContainer otherContainer = new FlinkMetricContainer(otherRuntimeContext);
+
+    Counter counter = new DelegatingCounter(MetricName.named("global", "counter"), true);
+    counter.inc(5);
+
+    otherContainer.updateMetrics("otherStep");
+    verify(otherMetricGroup, never()).counter("global.counter");
+
+    SimpleCounter flinkCounter = new SimpleCounter();
+    when(metricGroup.counter("global.counter")).thenReturn(flinkCounter);
+    container.updateMetrics("step");
+    assertThat(flinkCounter.getCount(), is(5L));
+  }
+
+  @Test
+  public void testUnscopedThreadMetricsAreNotPublishedAsProcessWideMetrics() {
+    Metrics.counter("global", "unscoped").inc(5);
+
+    container.updateMetrics("step");
+
+    verify(metricGroup, never()).counter("global.unscoped");
   }
 
   @Test

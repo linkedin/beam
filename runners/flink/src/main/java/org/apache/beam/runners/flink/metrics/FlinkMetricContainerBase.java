@@ -32,6 +32,8 @@ import org.apache.beam.sdk.metrics.MetricName;
 import org.apache.beam.sdk.metrics.MetricQueryResults;
 import org.apache.beam.sdk.metrics.MetricResult;
 import org.apache.beam.sdk.metrics.MetricResults;
+import org.apache.beam.sdk.metrics.MetricsContainer;
+import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.metrics.MetricsFilter;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.flink.configuration.GlobalConfiguration;
@@ -49,12 +51,15 @@ import org.apache.flink.metrics.MetricGroup;
  */
 abstract class FlinkMetricContainerBase {
 
+  private static final String PROCESS_WIDE_METRICS_STEP_NAME = "__process_wide_metrics";
+
   private static final String METRIC_KEY_SEPARATOR =
       GlobalConfiguration.loadConfiguration()
           .getOptional(MetricOptions.SCOPE_DELIMITER)
           .orElseGet(MetricOptions.SCOPE_DELIMITER::defaultValue);
 
   protected final MetricsContainerStepMap metricsContainers;
+  private final MetricsContainerImpl processWideMetricsContainer;
   private final Map<String, Counter> flinkCounterCache;
   private final Map<String, FlinkDistributionGauge> flinkDistributionGaugeCache;
   private final Map<String, FlinkGauge> flinkGaugeCache;
@@ -65,6 +70,8 @@ abstract class FlinkMetricContainerBase {
     this.flinkDistributionGaugeCache = new HashMap<>();
     this.flinkGaugeCache = new HashMap<>();
     this.metricsContainers = new MetricsContainerStepMap();
+    this.processWideMetricsContainer = MetricsContainerImpl.createProcessWideContainer();
+    GlobalMetricsUtils.setProcessWideMetricsContainer(processWideMetricsContainer);
     this.metricGroup = metricGroup;
   }
 
@@ -93,6 +100,23 @@ abstract class FlinkMetricContainerBase {
     MetricResults metricResults = asAttemptedOnlyMetricResults(metricsContainers);
     MetricQueryResults metricQueryResults =
         metricResults.queryMetrics(MetricsFilter.builder().addStep(stepName).build());
+    updateCounters(metricQueryResults.getCounters());
+    updateDistributions(metricQueryResults.getDistributions());
+    updateGauge(metricQueryResults.getGauges());
+    updateProcessWideMetrics();
+  }
+
+  private void updateProcessWideMetrics() {
+    MetricsContainer processWideContainer = MetricsEnvironment.getProcessWideContainer();
+    if (processWideContainer != processWideMetricsContainer) {
+      return;
+    }
+
+    MetricsContainerStepMap processWideMetrics = new MetricsContainerStepMap();
+    processWideMetrics.update(PROCESS_WIDE_METRICS_STEP_NAME, processWideMetricsContainer);
+    MetricQueryResults metricQueryResults =
+        asAttemptedOnlyMetricResults(processWideMetrics)
+            .queryMetrics(MetricsFilter.builder().addStep(PROCESS_WIDE_METRICS_STEP_NAME).build());
     updateCounters(metricQueryResults.getCounters());
     updateDistributions(metricQueryResults.getDistributions());
     updateGauge(metricQueryResults.getGauges());
