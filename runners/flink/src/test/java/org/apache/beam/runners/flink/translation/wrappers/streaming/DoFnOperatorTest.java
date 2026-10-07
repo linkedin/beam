@@ -60,6 +60,7 @@ import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
+import org.apache.beam.sdk.state.SetState;
 import org.apache.beam.sdk.state.StateSpec;
 import org.apache.beam.sdk.state.StateSpecs;
 import org.apache.beam.sdk.state.TimeDomain;
@@ -1092,6 +1093,91 @@ public class DoFnOperatorTest {
             WindowedValues.valueInGlobalWindow(KV.of("a", 5L))));
 
     testHarness.close();
+  }
+
+  @Test
+  public void testSetStateRestore() throws Exception {
+    DoFn<KV<String, Long>, KV<String, Long>> deduplicateFn =
+        new DoFn<KV<String, Long>, KV<String, Long>>() {
+          @StateId("seen")
+          private final StateSpec<SetState<Long>> seenSpec = StateSpecs.set(VarLongCoder.of());
+
+          @ProcessElement
+          public void processElement(ProcessContext context, @StateId("seen") SetState<Long> seen) {
+            KV<String, Long> element = context.element();
+            if (seen.addIfAbsent(element.getValue()).read()) {
+              context.output(element);
+            }
+          }
+        };
+
+    WindowingStrategy<Object, GlobalWindow> windowingStrategy = WindowingStrategy.globalDefault();
+    TupleTag<KV<String, Long>> outputTag = new TupleTag<>("main-output");
+    StringUtf8Coder keyCoder = StringUtf8Coder.of();
+    KvToFlinkKeyKeySelector<String, Long> keySelector = new KvToFlinkKeyKeySelector<>(keyCoder);
+    FullWindowedValueCoder<KV<String, Long>> coder =
+        WindowedValues.getFullCoder(
+            KvCoder.of(keyCoder, VarLongCoder.of()), GlobalWindow.Coder.INSTANCE);
+
+    OperatorSubtaskState snapshot;
+    try (OneInputStreamOperatorTestHarness<
+            WindowedValue<KV<String, Long>>, WindowedValue<KV<String, Long>>>
+        testHarness =
+            createTestHarness(
+                windowingStrategy,
+                deduplicateFn,
+                coder,
+                coder,
+                keyCoder,
+                outputTag,
+                ValueTypeInfo.of(FlinkKey.class),
+                keySelector)) {
+      testHarness.open();
+      for (KV<String, Long> element :
+          ImmutableList.of(KV.of("a", 1L), KV.of("a", 2L), KV.of("b", 2L), KV.of("a", 1L))) {
+        testHarness.processElement(new StreamRecord<>(WindowedValues.valueInGlobalWindow(element)));
+      }
+      assertThat(
+          stripStreamRecordFromWindowedValue(testHarness.getOutput()),
+          contains(
+              WindowedValues.valueInGlobalWindow(KV.of("a", 1L)),
+              WindowedValues.valueInGlobalWindow(KV.of("a", 2L)),
+              WindowedValues.valueInGlobalWindow(KV.of("b", 2L))));
+      snapshot = testHarness.snapshot(0, 0);
+    }
+
+    try (OneInputStreamOperatorTestHarness<
+            WindowedValue<KV<String, Long>>, WindowedValue<KV<String, Long>>>
+        testHarness =
+            createTestHarness(
+                windowingStrategy,
+                deduplicateFn,
+                coder,
+                coder,
+                keyCoder,
+                outputTag,
+                ValueTypeInfo.of(FlinkKey.class),
+                keySelector)) {
+      testHarness.initializeState(snapshot);
+      testHarness.open();
+      for (KV<String, Long> element :
+          ImmutableList.of(
+              KV.of("a", 1L),
+              KV.of("a", 2L),
+              KV.of("b", 2L),
+              KV.of("a", 3L),
+              KV.of("b", 1L),
+              KV.of("b", 3L),
+              KV.of("a", 3L))) {
+        testHarness.processElement(new StreamRecord<>(WindowedValues.valueInGlobalWindow(element)));
+      }
+      assertThat(
+          stripStreamRecordFromWindowedValue(testHarness.getOutput()),
+          contains(
+              WindowedValues.valueInGlobalWindow(KV.of("a", 3L)),
+              WindowedValues.valueInGlobalWindow(KV.of("b", 1L)),
+              WindowedValues.valueInGlobalWindow(KV.of("b", 3L))));
+    }
   }
 
   @Test
