@@ -1719,7 +1719,7 @@ public class FlinkStateInternals<K> implements StateInternals {
     @Override
     public <T> ValueState<T> bindValue(String id, StateSpec<ValueState<T>> spec, Coder<T> coder) {
       try {
-        keyedStateBackend.getOrCreateKeyedState(
+        getOrCreateKeyedState(
             namespaceSerializer,
             new ValueStateDescriptor<>(id, new CoderTypeSerializer<>(coder, fasterCopy)));
       } catch (Exception e) {
@@ -1732,7 +1732,7 @@ public class FlinkStateInternals<K> implements StateInternals {
     @Override
     public <T> BagState<T> bindBag(String id, StateSpec<BagState<T>> spec, Coder<T> elemCoder) {
       try {
-        keyedStateBackend.getOrCreateKeyedState(
+        getOrCreateKeyedState(
             namespaceSerializer,
             new ListStateDescriptor<>(id, new CoderTypeSerializer<>(elemCoder, fasterCopy)));
       } catch (Exception e) {
@@ -1745,7 +1745,7 @@ public class FlinkStateInternals<K> implements StateInternals {
     @Override
     public <T> SetState<T> bindSet(String id, StateSpec<SetState<T>> spec, Coder<T> elemCoder) {
       try {
-        keyedStateBackend.getOrCreateKeyedState(
+        getOrCreateKeyedState(
             namespaceSerializer,
             new MapStateDescriptor<>(
                 id, new CoderTypeSerializer<>(elemCoder, fasterCopy), BooleanSerializer.INSTANCE));
@@ -1762,7 +1762,7 @@ public class FlinkStateInternals<K> implements StateInternals {
         Coder<KeyT> mapKeyCoder,
         Coder<ValueT> mapValueCoder) {
       try {
-        keyedStateBackend.getOrCreateKeyedState(
+        getOrCreateKeyedState(
             namespaceSerializer,
             new MapStateDescriptor<>(
                 id,
@@ -1778,7 +1778,7 @@ public class FlinkStateInternals<K> implements StateInternals {
     public <T> OrderedListState<T> bindOrderedList(
         String id, StateSpec<OrderedListState<T>> spec, Coder<T> elemCoder) {
       try {
-        keyedStateBackend.getOrCreateKeyedState(
+        getOrCreateKeyedState(
             namespaceSerializer,
             new ListStateDescriptor<>(
                 id, new CoderTypeSerializer<>(TimestampedValueCoder.of(elemCoder), fasterCopy)));
@@ -1806,7 +1806,7 @@ public class FlinkStateInternals<K> implements StateInternals {
         Coder<AccumT> accumCoder,
         Combine.CombineFn<InputT, AccumT, OutputT> combineFn) {
       try {
-        keyedStateBackend.getOrCreateKeyedState(
+        getOrCreateKeyedState(
             namespaceSerializer,
             new ValueStateDescriptor<>(id, new CoderTypeSerializer<>(accumCoder, fasterCopy)));
       } catch (Exception e) {
@@ -1823,7 +1823,7 @@ public class FlinkStateInternals<K> implements StateInternals {
             Coder<AccumT> accumCoder,
             CombineWithContext.CombineFnWithContext<InputT, AccumT, OutputT> combineFn) {
       try {
-        keyedStateBackend.getOrCreateKeyedState(
+        getOrCreateKeyedState(
             namespaceSerializer,
             new ValueStateDescriptor<>(id, new CoderTypeSerializer<>(accumCoder, fasterCopy)));
       } catch (Exception e) {
@@ -1836,7 +1836,7 @@ public class FlinkStateInternals<K> implements StateInternals {
     public WatermarkHoldState bindWatermark(
         String id, StateSpec<WatermarkHoldState> spec, TimestampCombiner timestampCombiner) {
       try {
-        keyedStateBackend.getOrCreateKeyedState(
+        getOrCreateKeyedState(
             VoidNamespaceSerializer.INSTANCE,
             new MapStateDescriptor<>(
                 "watermark-holds",
@@ -1846,6 +1846,14 @@ public class FlinkStateInternals<K> implements StateInternals {
         throw new RuntimeException(e);
       }
       return null;
+    }
+
+    protected <NamespaceT, StateT extends org.apache.flink.api.common.state.State, T>
+        StateT getOrCreateKeyedState(
+            TypeSerializer<NamespaceT> namespaceSerializer,
+            StateDescriptor<StateT, T> stateDescriptor)
+            throws Exception {
+      return (StateT) keyedStateBackend.getOrCreateKeyedState(namespaceSerializer, stateDescriptor);
     }
   }
 }
