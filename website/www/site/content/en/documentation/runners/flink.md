@@ -313,6 +313,18 @@ For general Beam pipeline options see the
 [PipelineOptions](https://beam.apache.org/releases/javadoc/{{< param release_latest >}}/index.html?org/apache/beam/sdk/options/PipelineOptions.html)
 reference.
 
+### External configuration in the LinkedIn fork
+
+The LinkedIn fork also loads Flink settings from a Java service provider implementing
+`org.apache.beam.sdk.expansion.ExternalConfigRegistrar`. Register the provider in
+`META-INF/services/org.apache.beam.sdk.expansion.ExternalConfigRegistrar` and return a
+`Map<String, String>` of Flink configuration keys and values for the supplied pipeline options.
+
+These settings override matching keys loaded from the Flink configuration directory or defaults.
+The runner then applies its normal Beam pipeline-option handling; for example, an explicitly set
+`parallelism` takes precedence. Without a provider, or when it returns an empty map, existing
+configuration behavior is unchanged. Provider failures are propagated rather than silently ignored.
+
 ## Flink Version Compatibility
 
 The Flink cluster version has to match the minor version used by the FlinkRunner.

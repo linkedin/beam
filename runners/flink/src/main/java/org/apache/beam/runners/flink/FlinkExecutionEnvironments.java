@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.beam.runners.core.construction.SerializablePipelineOptions;
+import org.apache.beam.sdk.expansion.ExternalConfigRegistrar;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.InstanceBuilder;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.annotations.VisibleForTesting;
@@ -90,7 +91,7 @@ public class FlinkExecutionEnvironments {
 
     // Although Flink uses Rest, it expects the address not to contain a http scheme
     String flinkMasterHostPort = stripHttpSchema(options.getFlinkMaster());
-    Configuration flinkConfiguration = getFlinkConfiguration(confDir);
+    Configuration flinkConfiguration = getFlinkConfiguration(confDir, options);
     ExecutionEnvironment flinkBatchEnv;
 
     // depending on the master, create the right environment.
@@ -189,7 +190,7 @@ public class FlinkExecutionEnvironments {
 
     // Although Flink uses Rest, it expects the address not to contain a http scheme
     String masterUrl = stripHttpSchema(options.getFlinkMaster());
-    Configuration flinkConfiguration = getFlinkConfiguration(confDir);
+    Configuration flinkConfiguration = getFlinkConfiguration(confDir, options);
     StreamExecutionEnvironment flinkStreamEnv;
 
     // depending on the master, create the right environment.
@@ -493,10 +494,15 @@ public class FlinkExecutionEnvironments {
     return 1;
   }
 
-  private static Configuration getFlinkConfiguration(@Nullable String flinkConfDir) {
-    return flinkConfDir == null || flinkConfDir.isEmpty()
-        ? GlobalConfiguration.loadConfiguration()
-        : GlobalConfiguration.loadConfiguration(flinkConfDir);
+  private static Configuration getFlinkConfiguration(
+      @Nullable String flinkConfDir, FlinkPipelineOptions options) {
+    Configuration configuration =
+        flinkConfDir == null || flinkConfDir.isEmpty()
+            ? GlobalConfiguration.loadConfiguration()
+            : GlobalConfiguration.loadConfiguration(flinkConfDir);
+    Map<String, String> externalConfig = ExternalConfigRegistrar.getConfig(options);
+    configuration.addAll(Configuration.fromMap(externalConfig));
+    return configuration;
   }
 
   private static void applyLatencyTrackingInterval(
