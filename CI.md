@@ -42,6 +42,27 @@ For this reason there are mainly two types of GHA workflows running
   OS (linux, macOS, Windows). They were added prior to Jenkins migration.
   Some Linux jobs later migrated to use self-hosted runner.
 
+### LinkedIn fork: Beam 2.75 Flink validation
+
+The [LI Flink Runner Test](.github/workflows/li_runners_flink_tests.yml) workflow runs
+on pull requests and pushes to `li-release-2.75`, and supports manual dispatch. It uses
+GitHub-hosted Ubuntu runners, JDK 11, and Go 1.26.2, with separate Flink 1.20 and 2.2 jobs.
+Each job runs the full runner build and `validatesRunner` suite, then uploads test reports
+even if validation fails. No cloud credentials or package-publishing permissions are required.
+
+To run both jobs' validation locally with JDK 11 and Go available:
+
+```bash
+./gradlew :runners:flink:1.20:build :runners:flink:1.20:validatesRunner \
+  :runners:flink:2.2:build :runners:flink:2.2:validatesRunner \
+  --continue --rerun-tasks --no-build-cache --no-daemon --max-workers=2
+```
+
+`validatesRunner` covers batch, DataStream batch, streaming, and checkpointing using
+the repository's existing unsupported-category and sickbay exclusions. This Flink gate
+does not replace repository-wide validation: the root build also includes cloud-backed
+integration tests, which require a separately approved environment and resource scope.
+
 ## GitHub Actions
 
 This section applies to GitHub-hosted runner GHAs. New workflows unless intended
