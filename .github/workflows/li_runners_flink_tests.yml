@@ -1,0 +1,63 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership. The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: LI Flink Runner Test
+
+on:
+  pull_request:
+    branches: ['li-release-2.75']
+  push:
+    branches: ['li-release-2.75']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Flink ${{ matrix.flink }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        flink: ['1.20', '2.2']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.2'
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: temurin
+      - name: Build and validate the Flink runner
+        run: >-
+          ./gradlew :runners:flink:${{ matrix.flink }}:build
+          :runners:flink:${{ matrix.flink }}:validatesRunner
+          --continue --rerun-tasks --no-build-cache --no-daemon --max-workers=2
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: flink-${{ matrix.flink }}-test-reports
+          path: |
+            runners/flink/${{ matrix.flink }}/build/reports/tests/
+            runners/flink/${{ matrix.flink }}/build/test-results/
