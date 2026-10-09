@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.TypeDescriptor;
@@ -52,6 +53,8 @@ public class KvCoder<K extends @Nullable Object, V extends @Nullable Object>
 
   private final Coder<K> keyCoder;
   private final Coder<V> valueCoder;
+  private static final MapCoder<String, String> CONTEXT_CODER =
+      MapCoder.of(StringUtf8Coder.of(), StringUtf8Coder.of());
 
   private KvCoder(Coder<K> keyCoder, Coder<V> valueCoder) {
     this.keyCoder = keyCoder;
@@ -69,6 +72,7 @@ public class KvCoder<K extends @Nullable Object, V extends @Nullable Object>
     if (kv == null) {
       throw new CoderException("cannot encode a null KV");
     }
+    CONTEXT_CODER.encode(kv.getW3cTraceContext(), outStream);
     keyCoder.encode(kv.getKey(), outStream);
     valueCoder.encode(kv.getValue(), outStream, context);
   }
@@ -80,9 +84,12 @@ public class KvCoder<K extends @Nullable Object, V extends @Nullable Object>
 
   @Override
   public KV<K, V> decode(InputStream inStream, Context context) throws IOException, CoderException {
+    Map<String, String> traceContext = CONTEXT_CODER.decode(inStream);
     K key = keyCoder.decode(inStream);
     V value = valueCoder.decode(inStream, context);
-    return KV.of(key, value);
+    KV<K, V> newKv = KV.of(key, value);
+    newKv.getW3cTraceContext().putAll(traceContext);
+    return newKv;
   }
 
   @Override
