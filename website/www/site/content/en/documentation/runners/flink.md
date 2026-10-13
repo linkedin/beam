@@ -325,6 +325,21 @@ The runner then applies its normal Beam pipeline-option handling; for example, a
 `parallelism` takes precedence. Without a provider, or when it returns an empty map, existing
 configuration behavior is unchanged. Provider failures are propagated rather than silently ignored.
 
+### Custom translators in the LinkedIn fork
+
+Java extensions can register Flink streaming/DataStream translators through
+`org.apache.beam.runners.flink.FlinkCustomTransformTranslatorRegistrar`. Add the provider to
+`META-INF/services/org.apache.beam.runners.flink.FlinkCustomTransformTranslatorRegistrar` and
+return a map from transform URNs to `FlinkStreamingPipelineTranslator.StreamTransformTranslator`
+implementations. Their public `translateNode` method receives a `FlinkStreamingTranslationContext`
+for accessing the pipeline options, inputs, outputs, and Flink execution environment.
+
+Providers are discovered when the translator registry initializes. Built-ins are registered first,
+then custom maps are applied in ServiceLoader iteration order. Custom entries can replace built-ins;
+for duplicate URNs, the later registration wins. Avoid conflicting providers unless that override
+and ordering are intentional. Without a provider, built-in behavior is unchanged. Provider failures
+are propagated rather than silently ignored.
+
 ## Flink Version Compatibility
 
 The Flink cluster version has to match the minor version used by the FlinkRunner.
