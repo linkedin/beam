@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import org.apache.beam.runners.core.KeyedWorkItem;
 import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems;
 import org.apache.beam.runners.core.SystemReduceFn;
@@ -168,6 +169,11 @@ class FlinkStreamingTransformTranslators {
         PTransformTranslation.COMBINE_PER_KEY_TRANSFORM_URN, new CombinePerKeyTranslator());
 
     TRANSLATORS.put(PTransformTranslation.TEST_STREAM_TRANSFORM_URN, new TestStreamTranslator());
+
+    for (FlinkCustomTransformTranslatorRegistrar registrar :
+        ServiceLoader.load(FlinkCustomTransformTranslatorRegistrar.class)) {
+      TRANSLATORS.putAll(registrar.getTransformTranslators());
+    }
   }
 
   private static final String FORCED_SLOT_GROUP = "beam";
@@ -305,7 +311,7 @@ class FlinkStreamingTransformTranslators {
   private static class ImpulseTranslator<T>
       extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<Impulse> {
     @Override
-    void translateNode(Impulse transform, FlinkStreamingTranslationContext context) {
+    public void translateNode(Impulse transform, FlinkStreamingTranslationContext context) {
 
       TypeInformation<WindowedValue<byte[]>> typeInfo =
           new CoderTypeInformation<>(
@@ -354,7 +360,7 @@ class FlinkStreamingTransformTranslators {
         new UnboundedReadSourceTranslator<>();
 
     @Override
-    void translateNode(
+    public void translateNode(
         PTransform<PBegin, PCollection<T>> transform, FlinkStreamingTranslationContext context) {
       if (ReadTranslation.sourceIsBounded(context.getCurrentTransform())
           == PCollection.IsBounded.BOUNDED) {
@@ -1290,7 +1296,7 @@ class FlinkStreamingTransformTranslators {
       extends FlinkStreamingPipelineTranslator.StreamTransformTranslator<TestStream<T>> {
 
     @Override
-    void translateNode(TestStream<T> testStream, FlinkStreamingTranslationContext context) {
+    public void translateNode(TestStream<T> testStream, FlinkStreamingTranslationContext context) {
       Coder<T> valueCoder = testStream.getValueCoder();
 
       // Coder for the Elements in the TestStream

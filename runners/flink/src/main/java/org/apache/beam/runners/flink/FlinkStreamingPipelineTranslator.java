@@ -71,7 +71,7 @@ import org.slf4j.LoggerFactory;
   "rawtypes", // TODO(https://github.com/apache/beam/issues/20447)
   "nullness" // TODO(https://github.com/apache/beam/issues/20497)
 })
-class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
+public class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
 
   private static final Logger LOG = LoggerFactory.getLogger(FlinkStreamingPipelineTranslator.class);
 
@@ -182,10 +182,10 @@ class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
    * is for <b>streaming</b> jobs. For examples of such translators see {@link
    * FlinkStreamingTransformTranslators}.
    */
-  abstract static class StreamTransformTranslator<T extends PTransform> {
+  public abstract static class StreamTransformTranslator<T extends PTransform> {
 
     /** Translate the given transform. */
-    abstract void translateNode(T transform, FlinkStreamingTranslationContext context);
+    public abstract void translateNode(T transform, FlinkStreamingTranslationContext context);
 
     /** Returns true iff this translator can translate the given transform. */
     boolean canTranslate(T transform, FlinkStreamingTranslationContext context) {
