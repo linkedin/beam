@@ -20,6 +20,7 @@ package org.apache.beam.sdk.options;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -28,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -92,6 +94,50 @@ public class LinkedInPipelineOptionsHookTest {
   }
 
   @Test
+  public void cachedOptionsViewDoesNotUseClosedContextClassLoader() throws Exception {
+    TestOptions options = PipelineOptionsFactory.as(TestOptions.class);
+    options.setTestValue("cached");
+
+    withClosedContextClassLoader(
+        () -> {
+          assertSame(options, options.as(TestOptions.class));
+          assertEquals("cached", options.as(TestOptions.class).getTestValue());
+        });
+  }
+
+  @Test
+  public void cachedInitializedOptionsViewDoesNotUseClosedContextClassLoader() throws Exception {
+    withService(
+        CustomPipelineOptionsInitializer.Registrar.class,
+        TestCustomPipelineOptionsInitializer.Registrar.class,
+        () -> {
+          PipelineOptions options = PipelineOptionsFactory.create();
+          TestCustomPipelineOptionsInitializer.calls = 0;
+          TestOptions initialized = options.as(TestOptions.class);
+          initialized.setTestValue("initialized");
+          assertEquals(1, TestCustomPipelineOptionsInitializer.calls);
+
+          withClosedContextClassLoader(
+              () -> {
+                assertSame(initialized, options.as(TestOptions.class));
+                assertEquals("initialized", options.as(TestOptions.class).getTestValue());
+                assertEquals(1, TestCustomPipelineOptionsInitializer.calls);
+              });
+        });
+  }
+
+  @Test
+  public void uncachedOptionsStillPropagateClosedContextClassLoaderFailure() throws Exception {
+    PipelineOptions options = PipelineOptionsFactory.create();
+    withClosedContextClassLoader(
+        () -> {
+          IllegalStateException error =
+              assertThrows(IllegalStateException.class, () -> options.as(TestOptions.class));
+          assertEquals("Trying to access closed classloader", error.getMessage());
+        });
+  }
+
+  @Test
   public void propertyCustomizationHandlerCanRestoreExternallyStoredValues() throws Exception {
     TestPropertyCustomizationHandler.clearValues();
     Object nonSerializableValue = new Object();
@@ -136,6 +182,24 @@ public class LinkedInPipelineOptionsHookTest {
     URL[] urls = new URL[] {serviceRoot.toUri().toURL()};
     try (URLClassLoader classLoader = new URLClassLoader(urls, previous)) {
       Thread.currentThread().setContextClassLoader(classLoader);
+      runnable.run();
+    } finally {
+      Thread.currentThread().setContextClassLoader(previous);
+    }
+  }
+
+  private void withClosedContextClassLoader(ThrowingRunnable runnable) throws Exception {
+    ClassLoader previous = Thread.currentThread().getContextClassLoader();
+    ClassLoader closed =
+        new ClassLoader(previous) {
+          @Override
+          public Enumeration<URL> getResources(String name) {
+            // Match Flink's closed-loader resource guard without a Flink dependency in the SDK.
+            throw new IllegalStateException("Trying to access closed classloader");
+          }
+        };
+    try {
+      Thread.currentThread().setContextClassLoader(closed);
       runnable.run();
     } finally {
       Thread.currentThread().setContextClassLoader(previous);

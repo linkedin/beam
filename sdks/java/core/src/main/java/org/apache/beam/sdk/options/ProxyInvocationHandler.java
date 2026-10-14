@@ -338,6 +338,12 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     checkArgumentNotNull(iface);
     checkArgument(iface.isInterface(), "Not an interface: %s", iface);
 
+    // Cached views must not rediscover initializers through a retired context classloader.
+    T cachedOption = computedProperties.interfaceToProxyCache.getInstance(iface);
+    if (cachedOption != null) {
+      return cachedOption;
+    }
+
     CustomPipelineOptionsInitializer initializer =
         pipelineOptions == null ? null : CustomPipelineOptionsInitializer.get();
     if (initializer == null) {
