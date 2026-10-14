@@ -25,11 +25,15 @@ import java.util.Map;
 import org.apache.beam.runners.core.metrics.MetricsContainerStepMap;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.metrics.MetricResults;
+import org.apache.beam.sdk.transforms.PTransformOverrideRegistrar;
 import org.joda.time.Duration;
 
 /**
  * Result of executing a {@link org.apache.beam.sdk.Pipeline} with Flink. This has methods to query
  * to job runtime and the final values of the accumulators.
+ *
+ * <p>Waiting for this completed result also clears {@link PTransformOverrideRegistrar} entries on
+ * the calling thread.
  */
 @SuppressWarnings({
   "nullness" // TODO(https://github.com/apache/beam/issues/20497)
@@ -72,11 +76,13 @@ public class FlinkRunnerResult implements PipelineResult {
 
   @Override
   public State waitUntilFinish() {
+    PTransformOverrideRegistrar.clear();
     return State.DONE;
   }
 
   @Override
   public State waitUntilFinish(Duration duration) {
+    PTransformOverrideRegistrar.clear();
     return State.DONE;
   }
 

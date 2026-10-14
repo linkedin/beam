@@ -19,6 +19,7 @@ package org.apache.beam.runners.flink;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -29,7 +30,14 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.transforms.PTransformOverrideRegistrar;
 import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.execution.SavepointFormatType;
@@ -38,6 +46,7 @@ import org.junit.Test;
 
 /** Tests for {@link FlinkRunnerResult}. */
 public class FlinkRunnerResultTest {
+  private static final String OVERRIDE_TAG = "FlinkRunnerResultTest.override";
 
   @Test
   public void testPipelineResultReturnsDone() {
@@ -50,6 +59,72 @@ public class FlinkRunnerResultTest {
     FlinkRunnerResult result = new FlinkRunnerResult(Collections.emptyMap(), 100);
     assertThat(result.waitUntilFinish(), is(PipelineResult.State.DONE));
     assertThat(result.waitUntilFinish(Duration.millis(100)), is(PipelineResult.State.DONE));
+  }
+
+  @Test
+  public void testWaitUntilFinishClearsTransformOverrides() {
+    FlinkRunnerResult result = new FlinkRunnerResult(Collections.emptyMap(), 100);
+    assertClearsTransformOverrides(result::waitUntilFinish);
+  }
+
+  @Test
+  public void testTimedWaitUntilFinishClearsTransformOverrides() {
+    FlinkRunnerResult result = new FlinkRunnerResult(Collections.emptyMap(), 100);
+    assertClearsTransformOverrides(() -> result.waitUntilFinish(Duration.millis(100)));
+  }
+
+  private void assertClearsTransformOverrides(Supplier<PipelineResult.State> waitUntilFinish) {
+    PTransform<?, ?> first = Create.of("first");
+    PTransform<?, ?> replacement = Create.of("replacement");
+    String otherTag = OVERRIDE_TAG + ".other";
+    try {
+      PTransformOverrideRegistrar.register(OVERRIDE_TAG, first);
+      PTransformOverrideRegistrar.register(otherTag, first);
+
+      assertThat(waitUntilFinish.get(), is(PipelineResult.State.DONE));
+      assertNull(PTransformOverrideRegistrar.getOverriddenPTransform(OVERRIDE_TAG));
+      assertNull(PTransformOverrideRegistrar.getOverriddenPTransform(otherTag));
+
+      PTransformOverrideRegistrar.register(OVERRIDE_TAG, replacement);
+      assertSame(replacement, PTransformOverrideRegistrar.getOverriddenPTransform(OVERRIDE_TAG));
+    } finally {
+      PTransformOverrideRegistrar.clear();
+    }
+  }
+
+  @Test
+  public void testWaitUntilFinishPreservesOtherThreadsOverrides() throws Exception {
+    ExecutorService worker = Executors.newSingleThreadExecutor();
+    PTransform<?, ?> replacement = Create.of("other thread");
+    FlinkRunnerResult result = new FlinkRunnerResult(Collections.emptyMap(), 100);
+    try {
+      worker
+          .submit(() -> PTransformOverrideRegistrar.register(OVERRIDE_TAG, replacement))
+          .get(30, TimeUnit.SECONDS);
+
+      assertThat(result.waitUntilFinish(), is(PipelineResult.State.DONE));
+      assertSame(
+          replacement,
+          worker
+              .submit(() -> PTransformOverrideRegistrar.getOverriddenPTransform(OVERRIDE_TAG))
+              .get(30, TimeUnit.SECONDS));
+
+      assertThat(result.waitUntilFinish(Duration.millis(100)), is(PipelineResult.State.DONE));
+      worker
+          .submit(
+              () -> {
+                try {
+                  assertSame(
+                      replacement,
+                      PTransformOverrideRegistrar.getOverriddenPTransform(OVERRIDE_TAG));
+                } finally {
+                  PTransformOverrideRegistrar.clear();
+                }
+              })
+          .get(30, TimeUnit.SECONDS);
+    } finally {
+      worker.shutdownNow();
+    }
   }
 
   @Test
