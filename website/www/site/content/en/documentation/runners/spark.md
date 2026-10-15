@@ -67,6 +67,35 @@ the portable Runner. For more information on portability, please visit the
 
 ## Spark Runner prerequisites and setup
 
+### LinkedIn fork: custom Spark evaluators
+
+The LinkedIn fork supports custom bounded-transform evaluators for the RDD-based
+`SparkRunner` through
+`org.apache.beam.runners.spark.translation.TransformEvaluatorRegistrar`.
+Register providers with Java `ServiceLoader` (for example, `@AutoService`) and
+return a map from transform URNs to `TransformEvaluator` instances.
+This extension does not apply to `SparkStructuredStreamingRunner`.
+
+Providers are loaded when the translator registry initializes, using the current
+thread context classloader. Custom mappings are added after the built-in mappings,
+so they can replace built-in evaluators. For duplicate URNs, the last discovered
+provider wins; do not rely on a stable discovery order across deployments.
+Provider failures propagate rather than silently disabling an extension.
+
+Custom evaluators can construct `BoundedDataset` from an RDD of
+`org.apache.beam.sdk.values.WindowedValue` or from values plus a coder.
+`EvaluationContext.getSparkSession()` obtains a session using the runner's Spark
+context on demand, so ordinary RDD pipelines do not initialize a SQL session
+unless an evaluator requests one.
+
+The fork also preserves its calling-thread transform-override cleanup:
+`SparkPipelineResult.waitUntilFinish()` clears `PTransformOverrideRegistrar`
+after returning from a terminal wait. Timed waits, exceptions, state queries,
+and cancellation retain their existing behavior; registrations on other threads
+are not cleared.
+
+### Upstream setup
+
 The Spark runner currently supports Spark's 3.2.x branch.
 > **Note:** Support for Spark 2.4.x was dropped with Beam 2.46.0.
 

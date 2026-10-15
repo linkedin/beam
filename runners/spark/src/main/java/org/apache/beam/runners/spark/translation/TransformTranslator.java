@@ -863,6 +863,7 @@ public final class TransformTranslator {
     EVALUATORS.put(PTransformTranslation.CREATE_VIEW_TRANSFORM_URN, createPCollView());
     EVALUATORS.put(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN, window());
     EVALUATORS.put(PTransformTranslation.RESHUFFLE_URN, reshuffle());
+    EVALUATORS.putAll(TransformEvaluatorRegistrar.loadTransformEvaluators());
   }
 
   private static @Nullable TransformEvaluator<?> getTranslator(PTransform<?, ?> transform) {
