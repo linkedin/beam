@@ -96,10 +96,10 @@ public final class SkipShufflePartitionGuard {
    * caller's precondition actually holds; throws {@link IllegalStateException} with a detailed,
    * actionable message on the first record that violates it.
    *
-   * <p>Misalignment is deterministic per key (it depends only on the producer's partitioner and
-   * the source's partition-to-subtask assignment), so dropping misaligned records would silently
-   * lose whole key ranges. This guard therefore only fails fast; consumers that want to keep
-   * running should route misaligned records themselves, e.g. via {@code FlinkSubtaskContextAware}.
+   * <p>Misalignment is deterministic per key (it depends only on the producer's partitioner and the
+   * source's partition-to-subtask assignment), so dropping misaligned records would silently lose
+   * whole key ranges. This guard therefore only fails fast; consumers that want to keep running
+   * should route misaligned records themselves, e.g. via {@code FlinkSubtaskContextAware}.
    *
    * @param keySelector extracts the partitioning key from each record.
    * @param optionName the name of the pipeline option this guard is protecting (included in the
