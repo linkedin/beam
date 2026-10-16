@@ -47,6 +47,7 @@ import org.apache.beam.runners.core.construction.SplittableParDo;
 import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
+import org.apache.beam.runners.flink.translation.utils.SkipShufflePartitionGuard;
 import org.apache.beam.runners.flink.translation.wrappers.streaming.DoFnOperator;
 import org.apache.beam.runners.flink.translation.wrappers.streaming.KvToByteBufferKeySelector;
 import org.apache.beam.runners.flink.translation.wrappers.streaming.SingletonKeyedWorkItem;
@@ -105,6 +106,7 @@ import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.sdk.values.ValueWithRecordId;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterables;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Maps;
@@ -613,14 +615,56 @@ class FlinkStreamingTransformTranslators {
             producer != null
                 ? PTransformTranslation.urnForTransformOrNull(context.getProducer(input))
                 : null;
-        // We can skip reshuffle in case previous transform was CPK or GBK,
-        // or if the caller asserts input is already correctly key-partitioned.
-        if (PTransformTranslation.COMBINE_PER_KEY_TRANSFORM_URN.equals(previousUrn)
-            || PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN.equals(previousUrn)
-            || context
-                .getPipelineOptions()
-                .as(FlinkPipelineOptions.class)
-                .getSkipReshuffleForParDo()) {
+        // Flink guarantees producer-verified alignment when the immediately preceding transform
+        // is a CPK or GBK in this same pipeline (its keyBy already partitioned by this exact
+        // key). skipReshuffleForParDo, on the other hand, is an unverified caller assertion about
+        // upstream (e.g. source) partitioning, so unlike the CPK/GBK case it needs a runtime
+        // guard: reinterpretAsKeyedStream performs no validation of its own, and a violated
+        // precondition here silently corrupts keyed state or throws an opaque low-level
+        // KeyGroupRange exception deep in the state backend.
+        boolean producerAlreadyKeyed =
+            PTransformTranslation.COMBINE_PER_KEY_TRANSFORM_URN.equals(previousUrn)
+                || PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN.equals(previousUrn);
+        boolean skipReshuffleForParDo =
+            context.getPipelineOptions().as(FlinkPipelineOptions.class).getSkipReshuffleForParDo();
+        if (producerAlreadyKeyed || skipReshuffleForParDo) {
+          if (skipReshuffleForParDo && !producerAlreadyKeyed) {
+            int parallelism = context.getExecutionEnvironment().getParallelism();
+            int maxParallelism = context.getExecutionEnvironment().getMaxParallelism();
+            // An unset (-1) maxParallelism is derived by Flink per job vertex and can differ
+            // between the guard and the stateful operator (e.g. after restoring from a
+            // savepoint), so the guard could disagree with the state backend's key-group range.
+            Preconditions.checkState(
+                maxParallelism > 0,
+                "%s requires an explicit maxParallelism (set FlinkPipelineOptions#maxParallelism)"
+                    + " so the runtime partition guard and the stateful operator agree on key"
+                    + " groups.",
+                FlinkPipelineOptions.class.getSimpleName() + "#skipReshuffleForParDo");
+            SkipShufflePartitionGuard.checkParallelismAligned(
+                parallelism,
+                maxParallelism,
+                String.format(
+                    "%s requires parallelism (%s) to be <= maxParallelism (%s), because it relies"
+                        + " on a pointwise reinterpretAsKeyedStream instead of a physical shuffle;"
+                        + " parallelism > maxParallelism means keyBy and reinterpretAsKeyedStream"
+                        + " would route keys differently, and when parallelism < maxParallelism the"
+                        + " upstream source must itself assign contiguous key-group ranges per"
+                        + " subtask (not the default round-robin/striped assignment) for this to be"
+                        + " safe. Either make parallelism <= maxParallelism with a"
+                        + " contiguous-range-aware source partitioner, or disable this option.",
+                    FlinkPipelineOptions.class.getSimpleName() + "#skipReshuffleForParDo",
+                    parallelism,
+                    maxParallelism));
+            inputDataStream =
+                inputDataStream
+                    .flatMap(
+                        SkipShufflePartitionGuard.guard(
+                            (KeySelector<WindowedValue<InputT>, ByteBuffer>) keySelector,
+                            FlinkPipelineOptions.class.getSimpleName() + "#skipReshuffleForParDo",
+                            "this stateful ParDo"))
+                    .returns(inputDataStream.getType())
+                    .name("SkipShufflePartitionGuard");
+          }
           inputDataStream = DataStreamUtils.reinterpretAsKeyedStream(inputDataStream, keySelector);
         } else {
           inputDataStream = inputDataStream.keyBy(keySelector);
