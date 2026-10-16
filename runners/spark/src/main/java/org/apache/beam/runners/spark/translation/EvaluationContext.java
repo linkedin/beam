@@ -45,6 +45,7 @@ import org.apache.beam.sdk.values.WindowedValues;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Iterables;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -89,6 +90,10 @@ public class EvaluationContext {
 
   public JavaSparkContext getSparkContext() {
     return jsc;
+  }
+
+  public SparkSession getSparkSession() {
+    return SparkSession.builder().sparkContext(jsc.sc()).getOrCreate();
   }
 
   public JavaStreamingContext getStreamingContext() {
