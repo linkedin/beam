@@ -87,6 +87,7 @@ public class ParDoSkipShuffleTest implements Serializable {
     Pipeline p = FlinkTestPipeline.createForStreaming();
     FlinkPipelineOptions options = p.getOptions().as(FlinkPipelineOptions.class);
     options.setParallelism(1);
+    options.setMaxParallelism(1);
     options.setSkipReshuffleForParDo(true);
 
     int numKeys = 5;
@@ -251,41 +252,24 @@ public class ParDoSkipShuffleTest implements Serializable {
   }
 
   /**
-   * With both the option enabled and {@code skipShuffleGuardDropMisalignedRecords} enabled, the
-   * same misaligned input as {@link #testMisalignedInputTripsRuntimeGuard} must no longer crash the
-   * job: the guard logs and drops the misaligned records instead of throwing, so the pipeline
-   * completes successfully (with fewer output elements than input elements).
+   * Without an explicit maxParallelism, Flink derives one per job vertex, so the guard could
+   * disagree with the stateful operator's key-group range; translation must reject this.
    */
   @Test
-  public void testMisalignedInputIsDroppedWhenDropModeEnabled() throws Exception {
+  public void testUnsetMaxParallelismFailsFastAtTranslation() throws Exception {
     Pipeline p = FlinkTestPipeline.createForStreaming();
     FlinkPipelineOptions options = p.getOptions().as(FlinkPipelineOptions.class);
-    options.setParallelism(4);
-    options.setMaxParallelism(4);
+    options.setParallelism(2);
     options.setSkipReshuffleForParDo(true);
-    options.setSkipShuffleGuardDropMisalignedRecords(true);
 
-    int numKeys = 30;
-    PCollection<String> output =
-        input(p, numKeys)
-            .apply("Shuffle", Reshuffle.viaRandomKey())
-            .apply(ParDo.of(new CountingStatefulDoFn()));
+    input(p, 4).apply(ParDo.of(new CountingStatefulDoFn()));
 
-    // Every emitted element is one that genuinely landed on the subtask a real keyBy hash would
-    // route it to (misaligned ones are dropped rather than emitted), so there can never be more
-    // than numKeys outputs, and the pipeline must complete without throwing.
-    PAssert.that(output)
-        .satisfies(
-            elements -> {
-              int count = 0;
-              for (String ignored : elements) {
-                count++;
-              }
-              assertThat(count <= numKeys, org.hamcrest.Matchers.is(true));
-              return null;
-            });
-
-    p.run().waitUntilFinish();
+    try {
+      p.run().waitUntilFinish();
+      fail("Expected translation to fail because maxParallelism is unset.");
+    } catch (Exception e) {
+      assertThat(getRootMessage(e), containsString("requires an explicit maxParallelism"));
+    }
   }
 
   private static String getRootMessage(Throwable t) {

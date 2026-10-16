@@ -106,6 +106,7 @@ import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.sdk.values.ValueWithRecordId;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterables;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Maps;
@@ -630,7 +631,15 @@ class FlinkStreamingTransformTranslators {
           if (skipReshuffleForParDo && !producerAlreadyKeyed) {
             int parallelism = context.getExecutionEnvironment().getParallelism();
             int maxParallelism = context.getExecutionEnvironment().getMaxParallelism();
-            maxParallelism = maxParallelism > 0 ? maxParallelism : parallelism;
+            // An unset (-1) maxParallelism is derived by Flink per job vertex and can differ
+            // between the guard and the stateful operator (e.g. after restoring from a
+            // savepoint), so the guard could disagree with the state backend's key-group range.
+            Preconditions.checkState(
+                maxParallelism > 0,
+                "%s requires an explicit maxParallelism (set FlinkPipelineOptions#maxParallelism)"
+                    + " so the runtime partition guard and the stateful operator agree on key"
+                    + " groups.",
+                FlinkPipelineOptions.class.getSimpleName() + "#skipReshuffleForParDo");
             SkipShufflePartitionGuard.checkParallelismAligned(
                 parallelism,
                 maxParallelism,
@@ -646,19 +655,13 @@ class FlinkStreamingTransformTranslators {
                     FlinkPipelineOptions.class.getSimpleName() + "#skipReshuffleForParDo",
                     parallelism,
                     maxParallelism));
-            boolean dropMisalignedRecords =
-                context
-                    .getPipelineOptions()
-                    .as(FlinkPipelineOptions.class)
-                    .getSkipShuffleGuardDropMisalignedRecords();
             inputDataStream =
                 inputDataStream
                     .flatMap(
                         SkipShufflePartitionGuard.guard(
                             (KeySelector<WindowedValue<InputT>, ByteBuffer>) keySelector,
                             FlinkPipelineOptions.class.getSimpleName() + "#skipReshuffleForParDo",
-                            "this stateful ParDo",
-                            dropMisalignedRecords))
+                            "this stateful ParDo"))
                     .returns(inputDataStream.getType())
                     .name("SkipShufflePartitionGuard");
           }

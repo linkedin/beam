@@ -17,17 +17,12 @@
  */
 package org.apache.beam.runners.flink.translation.utils;
 
-import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Runtime safety net for this runner's "skip shuffle" optimization: the stateful {@code ParDo}
@@ -101,9 +96,10 @@ public final class SkipShufflePartitionGuard {
    * caller's precondition actually holds; throws {@link IllegalStateException} with a detailed,
    * actionable message on the first record that violates it.
    *
-   * <p>Equivalent to {@code guard(keySelector, optionName, callerDescription, false)} -- i.e.
-   * fail-fast on the first misaligned record. See the 4-argument overload to instead drop
-   * individual misaligned records and keep the job running.
+   * <p>Misalignment is deterministic per key (it depends only on the producer's partitioner and
+   * the source's partition-to-subtask assignment), so dropping misaligned records would silently
+   * lose whole key ranges. This guard therefore only fails fast; consumers that want to keep
+   * running should route misaligned records themselves, e.g. via {@code FlinkSubtaskContextAware}.
    *
    * @param keySelector extracts the partitioning key from each record.
    * @param optionName the name of the pipeline option this guard is protecting (included in the
@@ -114,68 +110,23 @@ public final class SkipShufflePartitionGuard {
    */
   public static <T, K> RichFlatMapFunction<T, T> guard(
       KeySelector<T, K> keySelector, String optionName, String callerDescription) {
-    return guard(keySelector, optionName, callerDescription, false);
-  }
-
-  /**
-   * Same as {@link #guard(KeySelector, String, String)}, with an additional {@code
-   * dropMisalignedRecords} switch controlling how a detected misalignment is handled.
-   *
-   * <p>When {@code dropMisalignedRecords} is {@code false} (the default/fail-fast behavior), the
-   * first misaligned record throws {@link IllegalStateException}, crashing the job -- appropriate
-   * when a misalignment indicates a systemic upstream partitioning bug that should be fixed rather
-   * than silently tolerated.
-   *
-   * <p>When {@code dropMisalignedRecords} is {@code true}, a misaligned record is instead logged at
-   * ERROR level, counted via the {@code skipShufflePartitionGuardDroppedRecords} metric, and
-   * dropped (not emitted downstream) -- the job keeps running. This is intended as a resilience
-   * valve for isolated/transient bad messages (e.g. a producer bug affecting a small subset of
-   * keys) where crashing the whole job on every such record is worse than losing that one record;
-   * it is NOT a substitute for fixing a systemic partitioning misconfiguration, since silently
-   * dropping a large fraction of traffic would go unnoticed without alerting on the metric.
-   *
-   * @param keySelector extracts the partitioning key from each record.
-   * @param optionName the name of the pipeline option this guard is protecting (included in the
-   *     exception/log message so it points the user at the right knob).
-   * @param callerDescription a short, human-readable description of the caller/translator this
-   *     guard protects (e.g. {@code "this stateful ParDo"}), included in the exception/log message
-   *     for context.
-   * @param dropMisalignedRecords when true, drop+log+count misaligned records instead of throwing.
-   */
-  public static <T, K> RichFlatMapFunction<T, T> guard(
-      KeySelector<T, K> keySelector,
-      String optionName,
-      String callerDescription,
-      boolean dropMisalignedRecords) {
-    return new Guard<>(keySelector, optionName, callerDescription, dropMisalignedRecords);
+    return new Guard<>(keySelector, optionName, callerDescription);
   }
 
   private static final class Guard<T, K> extends RichFlatMapFunction<T, T> {
     private static final long serialVersionUID = 1L;
-    private static final Logger LOG = LoggerFactory.getLogger(Guard.class);
-
-    @VisibleForTesting
-    static final String DROPPED_RECORDS_METRIC_NAME = "skipShufflePartitionGuardDroppedRecords";
-
     private final KeySelector<T, K> keySelector;
     private final String optionName;
     private final String callerDescription;
-    private final boolean dropMisalignedRecords;
 
     private transient int parallelism;
     private transient int maxParallelism;
     private transient int subtaskIndex;
-    private transient Counter droppedRecordsCounter = new SimpleCounter();
 
-    private Guard(
-        KeySelector<T, K> keySelector,
-        String optionName,
-        String callerDescription,
-        boolean dropMisalignedRecords) {
+    private Guard(KeySelector<T, K> keySelector, String optionName, String callerDescription) {
       this.keySelector = keySelector;
       this.optionName = optionName;
       this.callerDescription = callerDescription;
-      this.dropMisalignedRecords = dropMisalignedRecords;
     }
 
     @Override
@@ -183,8 +134,6 @@ public final class SkipShufflePartitionGuard {
       this.parallelism = getRuntimeContext().getNumberOfParallelSubtasks();
       this.maxParallelism = getRuntimeContext().getMaxNumberOfParallelSubtasks();
       this.subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
-      this.droppedRecordsCounter =
-          getRuntimeContext().getMetricGroup().counter(DROPPED_RECORDS_METRIC_NAME);
     }
 
     @Override
@@ -214,16 +163,7 @@ public final class SkipShufflePartitionGuard {
                 maxParallelism,
                 expectedSubtaskIndex,
                 callerDescription);
-        if (!dropMisalignedRecords) {
-          throw new IllegalStateException(message);
-        }
-        // Resilience mode: log + count + drop the single offending record instead of crashing the
-        // job. The counter is the load-bearing signal here -- it must be alerted on, since a
-        // systemic partitioning bug would otherwise silently drop a large fraction of traffic
-        // without failing the job.
-        LOG.error("Dropping misaligned record instead of failing the job. {}", message);
-        droppedRecordsCounter.inc();
-        return;
+        throw new IllegalStateException(message);
       }
       out.collect(value);
     }
