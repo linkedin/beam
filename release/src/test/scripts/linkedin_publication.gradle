@@ -1,0 +1,73 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+gradle.beforeProject { project ->
+  project.afterEvaluate {
+    if (project.plugins.hasPlugin('maven-publish')) {
+      project.tasks.register('checkLinkedinPublication') {
+        dependsOn 'generatePomFileForMavenJavaPublication'
+        if (project.path == ':sdks:java:core') {
+          dependsOn 'processResources'
+        }
+        doLast {
+          def group = project.property('expectedPublicationGroup')
+          def version = project.property('expectedPublicationVersion')
+          def publication = project.extensions.getByType(org.gradle.api.publish.PublishingExtension)
+          def pom = new XmlSlurper().parse(
+              project.file("${project.buildDir}/publications/mavenJava/pom-default.xml"))
+          assert pom.groupId.text() == group : "${project.path}: unexpected group"
+          assert pom.version.text() == version : "${project.path}: unexpected version"
+          assert pom.artifactId.text() == project.archivesBaseName
+          assert project.version.toString() == version
+          if (project.path == ':sdks:java:core') {
+            def properties = new Properties()
+            project.file("${project.buildDir}/resources/main/org/apache/beam/sdk/sdk.properties").withInputStream {
+              properties.load(it)
+            }
+            assert properties.getProperty('version') == version
+          }
+
+          pom.dependencies.dependency.each { dependency ->
+            assert dependency.artifactId.text() != 'beam-' :
+                "${project.path}: dependency project has not been configured"
+            if (dependency.artifactId.text().startsWith('beam-') &&
+                !dependency.artifactId.text().startsWith('beam-vendor-')) {
+              assert dependency.groupId.text() == group :
+                  "${project.path}: mixed fork dependency ${dependency.artifactId}"
+              assert dependency.version.text() == version :
+                  "${project.path}: inconsistent fork dependency ${dependency.artifactId}"
+            }
+          }
+          if (project.path == ':sdks:java:io:google-cloud-platform') {
+            assert pom.dependencyManagement.dependencies.dependency.any {
+              it.scope.text() == 'import' && it.type.text() == 'pom'
+            } : 'Versionless Google Cloud dependencies require their BOM even in snapshots'
+          }
+          if (group == 'com.linkedin.beam') {
+            assert publication.repositories.every { it.url.scheme == 'file' } :
+                'LinkedIn local packaging must not register a remote upload destination'
+          } else {
+            assert publication.repositories.any {
+              it.url.host == 'repository.apache.org'
+            } : 'Non-LinkedIn publication configuration must remain available'
+          }
+        }
+      }
+    }
+  }
+}
