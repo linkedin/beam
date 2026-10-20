@@ -79,6 +79,7 @@ buildCache {
 
 rootProject.name = "beam"
 
+include(":auto-elr")
 include(":release")
 include(":release:go-licenses:go")
 include(":release:go-licenses:java")

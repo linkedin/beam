@@ -63,7 +63,7 @@ the repository's existing unsupported-category and sickbay exclusions. This Flin
 does not replace repository-wide validation: the root build also includes cloud-backed
 integration tests, which require a separately approved environment and resource scope.
 
-### LinkedIn fork: local Java artifact packaging
+### LinkedIn fork: Java artifact packaging
 
 `gradle.properties` is the version source for the Java fork. Run
 `./update_version.sh 2.75.1` to set it, or omit the argument to increment the patch
@@ -75,13 +75,18 @@ files, create tags, or change Python/Go/TypeScript SDK releases. Python 3 is req
 | Flags | `-PisLinkedin -PisRelease` | `-PisLinkedin` (or add `-PisSnapshot` to a release build) | No `-PisLinkedin` flag |
 | Maven group | `com.linkedin.beam` | `com.linkedin.beam` | `org.apache.beam` |
 | Version at this revision | `2.75.1` | `2.75.1-SNAPSHOT` | `2.75.1` |
-| Remote publication destinations | None | None | Existing Apache destinations |
+| Remote publication destinations | JFrog only with `-PlinkedinPublish` | JFrog only with `-PlinkedinPublish` | Existing Apache destinations |
 
-For Java fork modules using `BeamModulePlugin`, LinkedIn mode is currently
-**local-only**: no JFrog destination or automatic release workflow is enabled.
-Vendored Apache artifacts have independent publishing configuration and retain
-their upstream coordinates. Use fully qualified local-publishing tasks, not the
-root `publish` task. Dependency-management BOMs are preserved in snapshots.
+For Java fork modules using `BeamModulePlugin`, LinkedIn mode remains local-only
+unless `-PlinkedinPublish` explicitly configures the JFrog destination. That flag
+does not upload anything by itself: only a remote publication task does so.
+Native publishing mode reads `ARTIFACTORY_USER` and `ARTIFACTORY_KEY` directly,
+without inheriting unrelated Maven settings credentials. Default local and
+upstream authentication behavior is unchanged. Vendored Apache artifacts retain
+their upstream coordinates and independent publishing configuration. Use explicit
+module tasks, never the root `publish` selector. Snapshot BOMs are preserved.
+The JFrog destination is only registered for Java artifact publishers managed by
+`applyJavaNature`; custom BOM/vendor publishers are not added to this release path.
 
 With JDK 11 and Go available, run the version-script and real POM-generation
 regressions with:
@@ -108,11 +113,69 @@ To stage one artifact without touching your normal Maven cache:
   --no-daemon --no-build-cache
 ```
 
-Building sibling projects does not publish their artifacts. Before using the
-staged jar, stage its complete `com.linkedin.beam` POM dependency closure as well.
-The updated Auto ELR aggregator and remote release/import validation are separate
-follow-up work; this local packaging gate does not prove downstream deployment
-compatibility.
+Individual-module publication does not publish sibling artifacts. To stage the
+complete required Java bundle instead, use:
+
+```bash
+./gradlew :auto-elr:publishMavenJavaPublicationToMavenLocal \
+  -Ppublishing -PisLinkedin -PisRelease -PnoSigning \
+  -Dmaven.repo.local=/absolute/path/to/isolated-repository \
+  --no-daemon --no-build-cache --max-workers=2
+```
+
+`com.linkedin.beam:beam-auto-elr` is a dependency aggregator, not an ELR network
+client. Its 21 roots cover the required 30 Java artifacts; Parquet is explicit
+because SQL declares it as provided, which is not inherited by Maven consumers.
+The aggregator is for import/discovery, not application runtime use: it includes
+multiple runner versions. Its publication tasks
+schedule the complete closure to the same destination before publishing the
+aggregator. A dependency publication failure blocks the aggregator even with
+`--continue`. Already-published dependencies are not rolled back: investigate
+partial remote releases before retrying. The module is not published under
+Apache coordinates.
+
+The regression suite tests actual release/snapshot staging, standalone consumer
+resolution and failure-before-marker behavior. Its test fixture refuses network
+publication tasks, and publisher configuration tests use dummy credentials.
+
+### LinkedIn fork: controlled JFrog publication
+
+The [LI JFrog publisher](.github/workflows/li_maven_publish.yml) is manual-only,
+restricted to `linkedin/beam` on `li_trunk` or `li-release-*` branches. It defaults
+to validation/local staging; `publish=true` explicitly enables the upload step.
+Jobs for the same artifact version are serialized without cancellation. JFrog
+secrets are passed only to that upload step.
+
+The default branch still carries the legacy workflow. Select the intended
+release branch explicitly when arranging an approved dry run, for example:
+
+```bash
+gh workflow run li_maven_publish.yml --repo linkedin/beam \
+  --ref li-release-2.75 -f version=2.75.1 -f publish=false
+```
+
+The workflow validates build contracts and Java runners, then stages the complete
+bundle locally without release credentials. It uses native publishing mode for
+this local step to avoid ambient Maven settings, but invokes only local tasks.
+After an approved dry run, an approved live invocation can select `publish=true`.
+Snapshot publication requires the matching `-SNAPSHOT` version input.
+
+For an approved direct invocation from a clean release branch:
+
+```bash
+./gradlew :auto-elr:publishLinkedin \
+  -Ppublishing -PisLinkedin -PisRelease -PlinkedinPublish -PnoSigning \
+  -PlinkedinVersion=2.75.1 --no-daemon --no-build-cache --max-workers=2
+```
+
+The publication guard checks branch, CI event/repository, clean worktree,
+checked-in version, SDK version, explicit version confirmation and credentials
+before any JFrog task. Add `-PisSnapshot` and confirm the snapshot version for a
+snapshot upload. Do not put credentials in command-line arguments.
+
+Workflow dispatch permissions, actual JFrog authentication/uploads, Auto ELR
+ingestion and downstream deployment are separate live validation gates. Local
+staging does not certify them or production runtime/JRE compatibility.
 
 ## GitHub Actions
 

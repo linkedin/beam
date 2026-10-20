@@ -50,7 +50,9 @@ jobs:
           distribution: temurin
       - name: Validate LinkedIn versioning and publication metadata
         if: matrix.flink == '1.20'
-        run: python3 release/src/test/scripts/test_linkedin_build.py -v
+        run: |
+          ./gradlew :beam-test-gha:check --no-daemon --no-build-cache
+          python3 release/src/test/scripts/test_linkedin_build.py -v
       - name: Build and validate the Flink runner
         run: >-
           ./gradlew :runners:flink:${{ matrix.flink }}:build

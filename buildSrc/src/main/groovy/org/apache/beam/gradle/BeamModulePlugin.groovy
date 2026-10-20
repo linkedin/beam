@@ -34,6 +34,7 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTree
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.JavaExec
@@ -444,6 +445,34 @@ class BeamModulePlugin implements Plugin<Project> {
     return parseBooleanProperty(project, 'isSnapshot');
   }
 
+  def isLinkedinPublish(Project project) {
+    return parseBooleanProperty(project, 'linkedinPublish');
+  }
+
+  void validateLinkedinPublication(Map publication) {
+    String ref = publication.ref ?: ''
+    if (ref != 'refs/heads/li_trunk' && !ref.startsWith('refs/heads/li-release-')) {
+      throw new GradleException('LinkedIn publication requires li_trunk or a li-release-* branch')
+    }
+    if (!publication.allowedWorkflow) {
+      throw new GradleException('CI publication requires workflow_dispatch in linkedin/beam')
+    }
+    if (!publication.clean) {
+      throw new GradleException('LinkedIn publication requires a clean git worktree')
+    }
+    String base = publication.configuredVersion
+    if (!base || !(base ==~ /[0-9]+\.[0-9]+\.[0-9]+/) ||
+    !(publication.version in [base, base + '-SNAPSHOT']) ||
+    publication.sdkVersion != base ||
+    publication.expectedVersion != publication.version) {
+      throw new GradleException(
+      'Confirm the checked-in publication version with -PlinkedinVersion=<version>')
+    }
+    if (!publication.username?.trim() || !publication.token?.trim()) {
+      throw new GradleException('LinkedIn publication requires ARTIFACTORY_USER and ARTIFACTORY_KEY')
+    }
+  }
+
   /**
    * Parses -Pprop as true for use as a flag, and otherwise uses Groovy's toBoolean
    */
@@ -514,6 +543,9 @@ class BeamModulePlugin implements Plugin<Project> {
     /** ***********************************************************************************************/
     // Apply common properties/repositories and tasks to all projects.
 
+    if (isLinkedinPublish(project) && !isLinkedin(project)) {
+      throw new GradleException('-PlinkedinPublish requires -PisLinkedin')
+    }
     project.ext.mavenGroupId = 'org.apache.beam'
     if (isLinkedin(project)) {
       project.ext.mavenGroupId = 'com.linkedin.beam'
@@ -527,6 +559,42 @@ class BeamModulePlugin implements Plugin<Project> {
     // which will also be the default artifactId for maven publications
     project.apply plugin: 'base'
     project.archivesBaseName = defaultArchivesBaseName(project)
+
+    if (project == project.rootProject && isLinkedinPublish(project)) {
+      project.tasks.register('validateLinkedinPublication') {
+        doLast {
+          def gitOutput = { List<String> arguments ->
+            project.providers.exec {
+              workingDir project.rootDir
+              commandLine(['git']+ arguments)
+            }.standardOutput.asText.get().trim()
+          }
+          boolean ci = System.getenv('GITHUB_ACTIONS') == 'true'
+          def configured = new Properties()
+          project.file('gradle.properties').withInputStream { configured.load(it) }
+          this.validateLinkedinPublication([
+            ref: ci ? System.getenv('GITHUB_REF') :
+            'refs/heads/' + gitOutput(['branch', '--show-current']),
+            allowedWorkflow: !ci || (System.getenv('GITHUB_REPOSITORY') == 'linkedin/beam' &&
+            System.getenv('GITHUB_EVENT_NAME') == 'workflow_dispatch'),
+            clean: gitOutput(['status', '--porcelain']).isEmpty(),
+            configuredVersion: configured.getProperty('version'),
+            version: project.version.toString(),
+            sdkVersion: project.sdk_version.toString(),
+            expectedVersion: project.findProperty('linkedinVersion'),
+            username: System.getenv('ARTIFACTORY_USER'),
+            token: System.getenv('ARTIFACTORY_KEY')
+          ])
+        }
+      }
+    }
+
+    project.tasks.withType(PublishToMavenRepository).configureEach { publisher ->
+      publisher.dependsOn {
+        publisher.repository.name == 'linkedin.jfrog.https' ?
+            project.rootProject.tasks.named('validateLinkedinPublication') : []
+      }
+    }
 
     // Register all Beam repositories and configuration tweaks
     Repositories.register(project)
@@ -1061,6 +1129,17 @@ class BeamModulePlugin implements Plugin<Project> {
       maven {
         name "testPublicationLocal"
         url "file://${project.rootProject.projectDir}/testPublication/"
+      }
+      if (isLinkedinPublish(project) &&
+      project.extensions.extraProperties.has('mavenProjectDependencies')) {
+        maven {
+          name 'linkedin.jfrog.https'
+          url 'https://linkedin.jfrog.io/artifactory/beam/'
+          credentials {
+            username = System.getenv('ARTIFACTORY_USER')
+            password = System.getenv('ARTIFACTORY_KEY')
+          }
+        }
       }
       if (!isLinkedin(project)) {
         maven {
@@ -1918,19 +1997,25 @@ class BeamModulePlugin implements Plugin<Project> {
 
         // plugin to support repository authentication via ~/.m2/settings.xml
         // https://github.com/mark-vieira/gradle-maven-settings-plugin/
-        project.apply plugin: 'net.linguica.maven-settings'
+        if (!isLinkedinPublish(project)) {
+          project.apply plugin: 'net.linguica.maven-settings'
+        }
 
-        project.afterEvaluate {
-          // POM-only tasks must see dependency coordinates even with configuration on demand.
+        project.ext.mavenProjectDependencies = {
           [
             configuration.shadowClosure ? 'shadow' : 'implementation',
             'provided'
-          ].each { name ->
-            project.configurations.getByName(name).allDependencies.withType(ProjectDependency).each {
-              def dependencyProject = it.getDependencyProject()
-              if (!dependencyProject.plugins.hasPlugin('org.apache.beam.module')) {
-                project.evaluationDependsOn(dependencyProject.path)
-              }
+          ].collectMany { name ->
+            project.configurations.getByName(name).allDependencies.withType(ProjectDependency)
+                .collect { it.getDependencyProject() }
+          }.unique { it.path }
+        }
+
+        project.afterEvaluate {
+          // POM-only tasks must see dependency coordinates even with configuration on demand.
+          project.mavenProjectDependencies().each { dependencyProject ->
+            if (!dependencyProject.plugins.hasPlugin('org.apache.beam.module')) {
+              project.evaluationDependsOn(dependencyProject.path)
             }
           }
         }

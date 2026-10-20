@@ -1,0 +1,98 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.publish.maven.tasks.AbstractPublishToMaven
+
+plugins { id 'org.apache.beam.module' }
+
+applyJavaNature(
+  automaticModuleName: 'org.apache.beam.autoelr',
+  publish: mavenGroupId == 'com.linkedin.beam'
+)
+
+description = 'LinkedIn Beam Java dependency aggregator for Auto ELR'
+
+dependencies {
+  implementation project(':model:pipeline')
+  implementation project(':runners:core-java')
+  implementation project(':runners:java-fn-execution')
+  implementation project(':runners:flink:1.20')
+  implementation project(':runners:flink:2.2')
+  implementation project(':runners:spark:3')
+  implementation project(':runners:portability:java')
+  implementation project(':sdks:java:core')
+  implementation project(':sdks:java:extensions:avro')
+  implementation project(':sdks:java:extensions:protobuf')
+  implementation project(':sdks:java:extensions:google-cloud-platform-core')
+  implementation project(':sdks:java:extensions:join-library')
+  implementation project(':sdks:java:extensions:sorter')
+  implementation project(':sdks:java:extensions:sql')
+  implementation project(':sdks:java:io:hadoop-common')
+  implementation project(':sdks:java:io:hadoop-file-system')
+  implementation project(':sdks:java:io:hadoop-format')
+  implementation project(':sdks:java:io:kafka')
+  implementation project(':sdks:java:io:mongodb')
+  // SQL declares Parquet as provided, so it must be an explicit import root.
+  implementation project(':sdks:java:io:parquet')
+  implementation project(':sdks:java:io:google-cloud-platform')
+}
+
+// These declarations are an import manifest, not Java source references.
+configurations.implementation.dependencies.withType(ProjectDependency).each {
+  def declaration = it.copy()
+  declaration.transitive = false
+  dependencies.add('permitUnusedDeclared', declaration)
+}
+
+def requiredPublications = {
+  def required = new LinkedHashMap<String, Project>()
+  Closure visit
+  visit = { Project dependency ->
+    if (dependency == project) {
+      throw new GradleException('Auto ELR must not appear in its own dependency closure')
+    }
+    if (required.containsKey(dependency.path)) {
+      return
+    }
+    if (!dependency.extensions.extraProperties.has('mavenProjectDependencies') ||
+        dependency.mavenGroupId != project.mavenGroupId ||
+        dependency.version != project.version) {
+      throw new GradleException("Invalid Auto ELR publication dependency: ${dependency.path}")
+    }
+    required[dependency.path] = dependency
+    dependency.mavenProjectDependencies().each { visit(it) }
+  }
+  project.mavenProjectDependencies().each { visit(it) }
+  required.values()
+}
+
+tasks.withType(AbstractPublishToMaven).configureEach { publisher ->
+  dependsOn {
+    requiredPublications().collect { dependency -> dependency.tasks.named(publisher.name) }
+  }
+}
+
+if (plugins.getPlugin('org.apache.beam.module').isLinkedinPublish(project) &&
+    project.plugins.hasPlugin('maven-publish')) {
+  tasks.register('publishLinkedin') {
+    group = 'Publishing'
+    description = 'Publish the required LinkedIn Java closure, followed by the Auto ELR marker'
+    dependsOn 'publishMavenJavaPublicationToLinkedin.jfrog.httpsRepository'
+  }
+}

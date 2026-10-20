@@ -1,0 +1,106 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership. The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: LI JFrog Artifactory Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Exact artifact version, for example 2.75.1 or 2.75.1-SNAPSHOT'
+        required: true
+        type: string
+      publish:
+        description: 'Upload to JFrog after validation (false stages locally only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: li-beam-publish-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.repository == 'linkedin/beam' &&
+      github.event_name == 'workflow_dispatch' &&
+      (github.ref == 'refs/heads/li_trunk' || startsWith(github.ref, 'refs/heads/li-release-'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      EXPECTED_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.2'
+          cache: false
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '11'
+          distribution: temurin
+      - name: Verify requested version
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          text = pathlib.Path('gradle.properties').read_text()
+          base = re.search(r'^version=(.+)$', text, re.MULTILINE).group(1)
+          expected = os.environ['EXPECTED_VERSION']
+          if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', base) or expected not in (base, base + '-SNAPSHOT'):
+              raise SystemExit('Requested version must match gradle.properties (optionally with -SNAPSHOT)')
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('PUBLISH_SNAPSHOT=' + str(expected.endswith('-SNAPSHOT')).lower() + '\n')
+          PY
+      - name: Validate LinkedIn build and publication contracts
+        run: |
+          ./gradlew :beam-test-gha:check --no-daemon --no-build-cache
+          python3 release/src/test/scripts/test_linkedin_build.py -v
+      - name: Validate Java and supported runners
+        run: >-
+          ./gradlew :buildSrc:check :runners:spark:spotlessCheck
+          :sdks:java:core:check :runners:core-java:check
+          :sdks:java:harness:check :sdks:java:extensions:avro:check
+          :runners:flink:1.19:build :runners:flink:1.20:build
+          :runners:flink:2.0:build :runners:flink:2.1:build :runners:flink:2.2:build
+          :runners:flink:1.20:validatesRunner :runners:flink:2.2:validatesRunner
+          :runners:spark:3:build :runners:spark:3:validatesRunner
+          :runners:spark:3:sparkVersionsTest :auto-elr:check
+          -Ppublishing -PisLinkedin -PisRelease -PlinkedinPublish -PnoSigning
+          "-PisSnapshot=$PUBLISH_SNAPSHOT"
+          --continue --rerun-tasks --no-build-cache --no-daemon --max-workers=2
+      - name: Stage complete publication locally
+        run: >-
+          ./gradlew :auto-elr:publishMavenJavaPublicationToMavenLocal
+          -Ppublishing -PisLinkedin -PisRelease -PlinkedinPublish -PnoSigning
+          "-PisSnapshot=$PUBLISH_SNAPSHOT"
+          "-Dmaven.repo.local=$RUNNER_TEMP/beam-publication"
+          --rerun-tasks --no-build-cache --no-daemon --max-workers=2
+      - name: Publish required artifacts and Auto ELR marker
+        if: inputs.publish
+        env:
+          ARTIFACTORY_USER: ${{ secrets.ARTIFACTORY_USER }}
+          ARTIFACTORY_KEY: ${{ secrets.ARTIFACTORY_KEY }}
+        run: >-
+          ./gradlew :auto-elr:publishLinkedin
+          -Ppublishing -PisLinkedin -PisRelease -PlinkedinPublish -PnoSigning
+          "-PisSnapshot=$PUBLISH_SNAPSHOT" "-PlinkedinVersion=$EXPECTED_VERSION"
+          --no-build-cache --no-daemon --max-workers=2
