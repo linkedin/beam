@@ -48,6 +48,9 @@ jobs:
         with:
           java-version: '11'
           distribution: temurin
+      - name: Validate LinkedIn versioning and publication metadata
+        if: matrix.flink == '1.20'
+        run: python3 release/src/test/scripts/test_linkedin_build.py -v
       - name: Build and validate the Flink runner
         run: >-
           ./gradlew :runners:flink:${{ matrix.flink }}:build

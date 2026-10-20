@@ -63,6 +63,57 @@ the repository's existing unsupported-category and sickbay exclusions. This Flin
 does not replace repository-wide validation: the root build also includes cloud-backed
 integration tests, which require a separately approved environment and resource scope.
 
+### LinkedIn fork: local Java artifact packaging
+
+`gradle.properties` is the version source for the Java fork. Run
+`./update_version.sh 2.75.1` to set it, or omit the argument to increment the patch
+number. The script updates only `version` and `sdk_version`; it does not stage
+files, create tags, or change Python/Go/TypeScript SDK releases. Python 3 is required.
+
+| Setting | LinkedIn release | LinkedIn snapshot | Upstream mode |
+|---|---|---|---|
+| Flags | `-PisLinkedin -PisRelease` | `-PisLinkedin` (or add `-PisSnapshot` to a release build) | No `-PisLinkedin` flag |
+| Maven group | `com.linkedin.beam` | `com.linkedin.beam` | `org.apache.beam` |
+| Version at this revision | `2.75.1` | `2.75.1-SNAPSHOT` | `2.75.1` |
+| Remote publication destinations | None | None | Existing Apache destinations |
+
+For Java fork modules using `BeamModulePlugin`, LinkedIn mode is currently
+**local-only**: no JFrog destination or automatic release workflow is enabled.
+Vendored Apache artifacts have independent publishing configuration and retain
+their upstream coordinates. Use fully qualified local-publishing tasks, not the
+root `publish` task. Dependency-management BOMs are preserved in snapshots.
+
+With JDK 11 and Go available, run the version-script and real POM-generation
+regressions with:
+
+```bash
+python3 release/src/test/scripts/test_linkedin_build.py -v
+```
+
+The Flink 1.20 CI job also runs these checks. They generate metadata and SDK
+version resources only; they do not publish artifacts. They cover
+release/snapshot/disabled flags, dependency coordinates under
+configuration-on-demand, and unchanged upstream publication configuration.
+The checks use temporary Maven settings rather than CI or developer credentials.
+A synthetic Maven home containing an unresolved credential placeholder verifies
+that ambient settings are ignored and left untouched; the existing Gradle cache
+is reused. Normal publication authentication is unchanged.
+
+To stage one artifact without touching your normal Maven cache:
+
+```bash
+./gradlew :sdks:java:core:publishMavenJavaPublicationToMavenLocal \
+  -Ppublishing -PisLinkedin -PisRelease -PnoSigning \
+  -Dmaven.repo.local=/absolute/path/to/isolated-repository \
+  --no-daemon --no-build-cache
+```
+
+Building sibling projects does not publish their artifacts. Before using the
+staged jar, stage its complete `com.linkedin.beam` POM dependency closure as well.
+The updated Auto ELR aggregator and remote release/import validation are separate
+follow-up work; this local packaging gate does not prove downstream deployment
+compatibility.
+
 ## GitHub Actions
 
 This section applies to GitHub-hosted runner GHAs. New workflows unless intended

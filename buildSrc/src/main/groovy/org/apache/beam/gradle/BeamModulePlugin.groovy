@@ -435,6 +435,15 @@ class BeamModulePlugin implements Plugin<Project> {
   def isRelease(Project project) {
     return parseBooleanProperty(project, 'isRelease');
   }
+
+  def isLinkedin(Project project) {
+    return parseBooleanProperty(project, 'isLinkedin');
+  }
+
+  def isSnapshot(Project project) {
+    return parseBooleanProperty(project, 'isSnapshot');
+  }
+
   /**
    * Parses -Pprop as true for use as a flag, and otherwise uses Groovy's toBoolean
    */
@@ -506,6 +515,13 @@ class BeamModulePlugin implements Plugin<Project> {
     // Apply common properties/repositories and tasks to all projects.
 
     project.ext.mavenGroupId = 'org.apache.beam'
+    if (isLinkedin(project)) {
+      project.ext.mavenGroupId = 'com.linkedin.beam'
+      if ((!isRelease(project) || isSnapshot(project)) &&
+      !project.version.toString().endsWith('-SNAPSHOT')) {
+        project.version = project.version.toString() + '-SNAPSHOT'
+      }
+    }
 
     // Default to dash-separated directories for artifact base name,
     // which will also be the default artifactId for maven publications
@@ -1046,28 +1062,30 @@ class BeamModulePlugin implements Plugin<Project> {
         name "testPublicationLocal"
         url "file://${project.rootProject.projectDir}/testPublication/"
       }
-      maven {
-        url(project.properties['distMgmtSnapshotsUrl'] ?: isRelease(project)
-            ? 'https://repository.apache.org/service/local/staging/deploy/maven2'
-            : 'https://repository.apache.org/content/repositories/snapshots')
-        name(project.properties['distMgmtServerId'] ?: isRelease(project)
-            ? 'apache.releases.https' : 'apache.snapshots.https')
-        // The maven settings plugin will load credentials from ~/.m2/settings.xml file that a user
-        // has configured with the Apache release and snapshot staging credentials.
-        // <settings>
-        //   <servers>
-        //     <server>
-        //       <id>apache.releases.https</id>
-        //       <username>USER_TOKEN</username>
-        //       <password>PASS_TOKEN</password>
-        //     </server>
-        //     <server>
-        //       <id>apache.snapshots.https</id>
-        //       <username>USER_TOKEN</username>
-        //       <password>PASS_TOKEN</password>
-        //     </server>
-        //   </servers>
-        // </settings>
+      if (!isLinkedin(project)) {
+        maven {
+          url(project.properties['distMgmtSnapshotsUrl'] ?: isRelease(project)
+              ? 'https://repository.apache.org/service/local/staging/deploy/maven2'
+              : 'https://repository.apache.org/content/repositories/snapshots')
+          name(project.properties['distMgmtServerId'] ?: isRelease(project)
+              ? 'apache.releases.https' : 'apache.snapshots.https')
+          // The maven settings plugin will load credentials from ~/.m2/settings.xml file that a user
+          // has configured with the Apache release and snapshot staging credentials.
+          // <settings>
+          //   <servers>
+          //     <server>
+          //       <id>apache.releases.https</id>
+          //       <username>USER_TOKEN</username>
+          //       <password>PASS_TOKEN</password>
+          //     </server>
+          //     <server>
+          //       <id>apache.snapshots.https</id>
+          //       <username>USER_TOKEN</username>
+          //       <password>PASS_TOKEN</password>
+          //     </server>
+          //   </servers>
+          // </settings>
+        }
       }
     }
 
@@ -1901,6 +1919,21 @@ class BeamModulePlugin implements Plugin<Project> {
         // plugin to support repository authentication via ~/.m2/settings.xml
         // https://github.com/mark-vieira/gradle-maven-settings-plugin/
         project.apply plugin: 'net.linguica.maven-settings'
+
+        project.afterEvaluate {
+          // POM-only tasks must see dependency coordinates even with configuration on demand.
+          [
+            configuration.shadowClosure ? 'shadow' : 'implementation',
+            'provided'
+          ].each { name ->
+            project.configurations.getByName(name).allDependencies.withType(ProjectDependency).each {
+              def dependencyProject = it.getDependencyProject()
+              if (!dependencyProject.plugins.hasPlugin('org.apache.beam.module')) {
+                project.evaluationDependsOn(dependencyProject.path)
+              }
+            }
+          }
+        }
 
         // Create a task which emulates the maven-archiver plugin in generating a
         // pom.properties file.
