@@ -94,6 +94,10 @@ The Flink 1.20 CI job also runs these checks. They generate metadata and SDK
 version resources only; they do not publish artifacts. They cover
 release/snapshot/disabled flags, dependency coordinates under
 configuration-on-demand, and unchanged upstream publication configuration.
+The checks use temporary Maven settings rather than CI or developer credentials.
+A synthetic Maven home containing an unresolved credential placeholder verifies
+that ambient settings are ignored and left untouched; the existing Gradle cache
+is reused. Normal publication authentication is unchanged.
 
 To stage one artifact without touching your normal Maven cache:
 

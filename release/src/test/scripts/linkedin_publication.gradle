@@ -17,6 +17,10 @@
  */
 
 gradle.beforeProject { project ->
+  project.plugins.withId('net.linguica.maven-settings') {
+    project.extensions.getByName('mavenSettings').userSettingsFileName =
+        project.property('publicationTestSettings').toString()
+  }
   project.afterEvaluate {
     if (project.plugins.hasPlugin('maven-publish')) {
       project.tasks.register('checkLinkedinPublication') {

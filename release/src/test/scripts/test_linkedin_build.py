@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import os
 import pathlib
 import re
 import shutil
@@ -91,6 +92,27 @@ class VersionUpdateTest(unittest.TestCase):
 
 
 class PublicationMetadataTest(unittest.TestCase):
+  def setUp(self):
+    self.directory = tempfile.TemporaryDirectory()
+    self.addCleanup(self.directory.cleanup)
+    self.home = pathlib.Path(self.directory.name) / 'home'
+    maven = self.home / '.m2'
+    maven.mkdir(parents=True)
+    self.ambient_settings = maven / 'settings.xml'
+    self.ambient_xml = (
+        '<settings><servers><server><id>github</id>'
+        '<username>metadata-test</username>'
+        '<password>${env.BEAM_METADATA_TEST_TOKEN}</password>'
+        '</server></servers></settings>')
+    self.ambient_settings.write_text(self.ambient_xml)
+    self.settings = pathlib.Path(self.directory.name) / 'empty-settings.xml'
+    self.settings.write_text('<settings/>')
+    self.environment = os.environ.copy()
+    self.environment.pop('BEAM_METADATA_TEST_TOKEN', None)
+    self.gradle_home = (
+        os.environ.get('GRADLE_USER_HOME') or
+        str(pathlib.Path.home() / '.gradle'))
+
   def test_coordinates_versions_repositories_and_boms(self):
     base = re.search(
         r'^version=(.+)$',
@@ -131,6 +153,10 @@ class PublicationMetadataTest(unittest.TestCase):
             '-PnoSigning',
             '-PexpectedPublicationGroup=' + group,
             '-PexpectedPublicationVersion=' + version,
+            '-PpublicationTestSettings=' + str(self.settings),
+            '-Duser.home=' + str(self.home),
+            '--gradle-user-home',
+            self.gradle_home,
             '--no-daemon',
             '--no-build-cache',
             '--rerun-tasks',
@@ -141,11 +167,13 @@ class PublicationMetadataTest(unittest.TestCase):
         result = subprocess.run(
             command,
             cwd=ROOT,
+            env=self.environment,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=False)
         self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(self.ambient_settings.read_text(), self.ambient_xml)
 
 
 if __name__ == '__main__':
