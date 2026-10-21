@@ -46,6 +46,47 @@ task check {
       // attempt load yml to make sure its valid
       def workflow = new org.yaml.snakeyaml.Yaml().load(it.newInputStream())
 
+      if (fname == 'li_maven_publish.yml') {
+        def trigger = workflow.getAt(true)
+        def inputs = trigger?.workflow_dispatch?.inputs
+        def publisher = workflow.jobs?.publish
+        def expectedCondition = "github.repository == 'linkedin/beam' && " +
+            "github.event_name == 'workflow_dispatch' && " +
+            "(github.ref == 'refs/heads/li_trunk' || startsWith(github.ref, 'refs/heads/li-release-'))"
+        if (trigger?.keySet() != (['workflow_dispatch'] as Set) ||
+            inputs?.version?.required != true || inputs?.version?.type != 'string' ||
+            inputs?.publish?.type != 'boolean' || inputs?.publish?.get('default') != false) {
+          errors.add('LinkedIn publishing must be manual, version-confirmed and dry-run by default')
+        }
+        if (publisher?.get('if')?.replaceAll(/\s+/, ' ')?.trim() != expectedCondition) {
+          errors.add('LinkedIn publishing must restrict repository, event and release branch')
+        }
+        if (workflow.permissions != [contents: 'read'] ||
+            workflow.concurrency?.group != 'li-beam-publish-${{ inputs.version }}' ||
+            workflow.concurrency?.get('cancel-in-progress') != false) {
+          errors.add('LinkedIn publishing must use read-only GitHub permissions and serialize versions')
+        }
+        def uploads = publisher?.steps?.findAll {
+          it.run?.contains(':auto-elr:publishLinkedin')
+        }
+        if (uploads?.size() != 1 || uploads[0].get('if') != 'inputs.publish' ||
+            uploads[0].env != [
+              ARTIFACTORY_USER: '${{ secrets.ARTIFACTORY_USER }}',
+              ARTIFACTORY_KEY: '${{ secrets.ARTIFACTORY_KEY }}'
+            ]) {
+          errors.add('Only the explicitly enabled upload step may publish with JFrog credentials')
+        }
+        if (publisher?.env?.keySet()?.any { it.startsWith('ARTIFACTORY_') }) {
+          errors.add('JFrog credentials must not be exposed to validation or local staging')
+        }
+        def credentialSteps = publisher?.steps?.findAll {
+          it.env?.values()?.any { value -> value.toString().contains('secrets.ARTIFACTORY_') }
+        }
+        if (credentialSteps != uploads) {
+          errors.add('Only the upload step may reference JFrog secrets')
+        }
+      }
+
       // additional guards to ensure tests configured in same way
       if ( fname.startsWith("beam_PreCommit") || fname.startsWith("beam_PostCommit") ) {
         List paths
