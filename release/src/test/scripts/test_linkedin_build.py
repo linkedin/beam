@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import json
 import os
 import pathlib
 import re
@@ -91,6 +92,149 @@ class VersionUpdateTest(unittest.TestCase):
         result = self.run_update('2.75.8')
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertEqual(self.properties.read_text(), text)
+
+
+class PublisherWorkflowTest(unittest.TestCase):
+  def test_publisher_dependencies_and_safety_guards(self):
+    mutations = {
+        'valid': '',
+        'missing_contract_gate':
+            "definition.jobs.publish.needs.remove('validate_contracts')",
+        'missing_runner_gate':
+            "definition.jobs.publish.needs.remove('validate_runners')",
+        'serial_validation':
+            "definition.jobs.validate_runners.needs = 'validate_contracts'",
+        'allow_failed_gate':
+            "definition.jobs.publish['if'] = 'failure()'",
+        'allow_cancelled_gate':
+            "definition.jobs.publish['if'] = 'cancelled()'",
+        'allow_skipped_gate':
+            "definition.jobs.validate_runners['if'] = 'always()'",
+        'ignore_job_failure':
+            "definition.jobs.validate_contracts['continue-on-error'] = true",
+        'ignore_step_failure':
+            "definition.jobs.validate_runners.steps.find { it.run }['continue-on-error'] = true",
+        'skip_contract_validation':
+            "definition.jobs.validate_contracts.steps.find { it.run }['if'] = 'false'",
+        'skip_runner_validation':
+            "definition.jobs.validate_runners.steps.find { it.run }['if'] = 'false'",
+        'skip_version_check':
+            "definition.jobs.prepare.steps.find { it.id == 'version' }['if'] = 'false'",
+        'wrong_snapshot':
+            "definition.jobs.publish.env.PUBLISH_SNAPSHOT = 'false'",
+        'mutable_checkout':
+            "definition.jobs.publish.steps[0]['with'].ref = '${{ github.ref }}'",
+        'credential_leak':
+            "definition.jobs.validate_runners.env.ARTIFACTORY_KEY = '${{ secrets.ARTIFACTORY_KEY }}'",
+        'unguarded_upload':
+            "definition.jobs.publish.steps.find { it.run?.contains(':auto-elr:publishLinkedin') }['if'] = 'always()'",
+        'skip_dry_run':
+            "definition.jobs.publish['if'] += ' && inputs.publish'",
+        'missing_staging':
+            "definition.jobs.publish.steps.removeAll { it.run?.contains(':auto-elr:publishMavenJavaPublicationToMavenLocal') }",
+        'upload_before_staging':
+            "def steps = definition.jobs.publish.steps; def upload = steps.find { it.run?.contains(':auto-elr:publishLinkedin') }; steps.remove(upload); steps.add(0, upload)",
+        'missing_reports':
+            "definition.jobs.validate_runners.steps.removeAll { it.uses?.startsWith('actions/upload-artifact@') }",
+        'success_only_reports':
+            "definition.jobs.validate_runners.steps.find { it.uses?.startsWith('actions/upload-artifact@') }['if'] = 'success()'",
+        'reports_before_validation':
+            "def steps = definition.jobs.validate_runners.steps; def reports = steps.find { it.uses?.startsWith('actions/upload-artifact@') }; steps.remove(reports); steps.add(0, reports)",
+        'missing_spark_tests':
+            "def step = definition.jobs.validate_runners.steps.find { it.run }; step.run = step.run.replace(':runners:spark:3:sparkVersionsTest', '')",
+        'raised_job_budget':
+            "definition.jobs.validate_contracts['timeout-minutes'] = 240",
+    }
+    with tempfile.TemporaryDirectory() as directory:
+      fixture = pathlib.Path(directory)
+      (fixture / 'settings.gradle').write_text(
+          "rootProject.name = 'publisher-workflow-contract'\n" +
+          '\n'.join("include '" + name + "'" for name in mutations) + '\n')
+      (fixture / 'build.gradle').write_text("""
+gradle.taskGraph.afterTask { task, state ->
+  if (task.name == 'check') {
+    def messages = []
+    for (def failure = state.failure; failure != null; failure = failure.cause) {
+      messages.add(failure.message)
+    }
+    new File(rootProject.projectDir, task.project.name + '.json').text =
+        groovy.json.JsonOutput.toJson([failed: state.failure != null, messages: messages])
+  }
+}
+""")
+      checker = (ROOT / '.github/build.gradle').read_text()
+      for name, mutation in mutations.items():
+        project = fixture / name
+        (project / 'workflows').mkdir(parents=True)
+        (project / 'workflows/README.md').write_text('')
+        shutil.copyfile(
+            ROOT / '.github/workflows/li_maven_publish.yml',
+            project / 'source.yml')
+        (project / 'build.gradle').write_text(checker + """
+def definition = new org.yaml.snakeyaml.Yaml().load(file('source.yml').newInputStream())
+""" + mutation + """
+file('workflows/li_maven_publish.yml').text = new org.yaml.snakeyaml.Yaml().dump(definition)
+if (project.name == 'valid') {
+  new File(rootProject.projectDir, 'version-command.json').text =
+      groovy.json.JsonOutput.toJson(definition.jobs.prepare.steps.find { it.id == 'version' }.run)
+}
+""")
+      environment = os.environ.copy()
+      environment.pop('ARTIFACTORY_USER', None)
+      environment.pop('ARTIFACTORY_KEY', None)
+      result = subprocess.run(
+          [
+              str(ROOT / 'gradlew'), '-p', str(fixture),
+              *(':' + name + ':check' for name in mutations),
+              '--continue', '--no-daemon', '--no-build-cache', '--rerun-tasks',
+              '--max-workers=2', '--console=plain',
+          ],
+          cwd=ROOT,
+          env=environment,
+          text=True,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.STDOUT,
+          check=False)
+      self.assertNotEqual(result.returncode, 0, result.stdout)
+      for name in mutations:
+        with self.subTest(mutation=name):
+          outcome = fixture / (name + '.json')
+          self.assertTrue(outcome.exists(), result.stdout)
+          state = json.loads(outcome.read_text())
+          self.assertEqual(state['failed'], name != 'valid', state)
+          if name != 'valid':
+            self.assertIn('Check failed:', '\n'.join(state['messages']))
+
+      command = json.loads((fixture / 'version-command.json').read_text())
+      base = re.search(
+          r'^version=(.+)$',
+          (ROOT / 'gradle.properties').read_text(),
+          re.MULTILINE).group(1)
+      (fixture / 'gradle.properties').write_text('version=' + base + '\n')
+      output = fixture / 'version-output'
+      for version, snapshot in [
+          (base, 'false'), (base + '-SNAPSHOT', 'true'),
+          (base + '.1', None), (base + '-RC1', None),
+          (base + '\nunexpected=true', None),
+      ]:
+        with self.subTest(version=version):
+          output.write_text('')
+          result = subprocess.run(
+              ['bash', '-e', '-c', command],
+              cwd=fixture,
+              env=dict(
+                  environment, EXPECTED_VERSION=version,
+                  GITHUB_OUTPUT=str(output)),
+              text=True,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.STDOUT,
+              check=False)
+          if snapshot is None:
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(output.read_text(), '')
+          else:
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(output.read_text(), 'snapshot=' + snapshot + '\n')
 
 
 class PublicationMetadataTest(unittest.TestCase):

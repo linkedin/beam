@@ -49,7 +49,12 @@ task check {
       if (fname == 'li_maven_publish.yml') {
         def trigger = workflow.getAt(true)
         def inputs = trigger?.workflow_dispatch?.inputs
+        def prepare = workflow.jobs?.prepare
+        def contracts = workflow.jobs?.validate_contracts
+        def runners = workflow.jobs?.validate_runners
         def publisher = workflow.jobs?.publish
+        def allJobs = workflow.jobs?.values()?.toList() ?: []
+        def allSteps = allJobs.collectMany { it.steps ?: [] }
         def expectedCondition = "github.repository == 'linkedin/beam' && " +
             "github.event_name == 'workflow_dispatch' && " +
             "(github.ref == 'refs/heads/li_trunk' || startsWith(github.ref, 'refs/heads/li-release-'))"
@@ -58,46 +63,116 @@ task check {
             inputs?.publish?.type != 'boolean' || inputs?.publish?.get('default') != false) {
           errors.add('LinkedIn publishing must be manual, version-confirmed and dry-run by default')
         }
-        if (publisher?.get('if')?.replaceAll(/\s+/, ' ')?.trim() != expectedCondition) {
-          errors.add('LinkedIn publishing must restrict repository, event and release branch')
+        if (prepare?.get('if')?.replaceAll(/\s+/, ' ')?.trim() != expectedCondition ||
+            publisher?.get('if')?.replaceAll(/\s+/, ' ')?.trim() !=
+                'success() && ' + expectedCondition) {
+          errors.add('LinkedIn publishing must retain release/event restrictions and success gating')
+        }
+        if (workflow.jobs?.keySet() !=
+            (['prepare', 'validate_contracts', 'validate_runners', 'publish'] as Set) ||
+            prepare?.needs != null || contracts?.needs != 'prepare' ||
+            runners?.needs != 'prepare' || !(publisher?.needs instanceof List) ||
+            publisher.needs.size() != 3 ||
+            publisher.needs.toSet() !=
+                (['prepare', 'validate_contracts', 'validate_runners'] as Set)) {
+          errors.add('LinkedIn publication must wait for version and both independent validation jobs')
+        }
+        if ([contracts, runners].any { it?.get('if') != null } ||
+            (allJobs + allSteps).any { !(it.get('continue-on-error') in [null, false]) }) {
+          errors.add('LinkedIn validation must not bypass failed, skipped or cancelled gates')
+        }
+        if (prepare?.get('timeout-minutes') != 10 ||
+            [contracts, runners, publisher].any { it?.get('timeout-minutes') != 120 }) {
+          errors.add('LinkedIn publishing must keep independent bounded job budgets')
+        }
+        def versionCheck = prepare?.steps?.find { it.id == 'version' }
+        if (prepare?.outputs?.snapshot != '${{ steps.version.outputs.snapshot }}' ||
+            versionCheck == null || versionCheck.get('if') != null ||
+            prepare?.env?.EXPECTED_VERSION != '${{ inputs.version }}' ||
+            publisher?.env?.EXPECTED_VERSION != '${{ inputs.version }}' ||
+            [runners, publisher].any {
+              it?.env?.PUBLISH_SNAPSHOT != '${{ needs.prepare.outputs.snapshot }}'
+            }) {
+          errors.add('LinkedIn jobs must use the validated version and snapshot output')
+        }
+        allJobs.each { job ->
+          def checkouts = job.steps?.findAll { it.uses?.startsWith('actions/checkout@') }
+          if (checkouts?.size() != 1 || checkouts[0].get('if') != null ||
+              checkouts[0].get('with')?.ref != '${{ github.sha }}' ||
+              checkouts[0].get('with')?.get('persist-credentials') != false) {
+            errors.add('Every LinkedIn publishing job must check out the same immutable commit')
+          }
         }
         if (workflow.permissions != [contents: 'read'] ||
+            allJobs.any { it.permissions != null && it.permissions != [contents: 'read'] } ||
             workflow.concurrency?.group != 'li-beam-publish-${{ inputs.version }}' ||
             workflow.concurrency?.get('cancel-in-progress') != false) {
           errors.add('LinkedIn publishing must use read-only GitHub permissions and serialize versions')
         }
-        def uploads = publisher?.steps?.findAll {
+        def uploads = allSteps.findAll {
           it.run?.contains(':auto-elr:publishLinkedin')
         }
-        if (uploads?.size() != 1 || uploads[0].get('if') != 'inputs.publish' ||
+        if (uploads.size() != 1 || !publisher?.steps?.contains(uploads[0]) ||
+            uploads[0].get('if') != 'inputs.publish' ||
             uploads[0].env != [
               ARTIFACTORY_USER: '${{ secrets.ARTIFACTORY_USER }}',
               ARTIFACTORY_KEY: '${{ secrets.ARTIFACTORY_KEY }}'
             ]) {
           errors.add('Only the explicitly enabled upload step may publish with JFrog credentials')
         }
-        if (publisher?.env?.keySet()?.any { it.startsWith('ARTIFACTORY_') }) {
+        def hasPublicationCredentials = { environment ->
+          environment?.any { key, value ->
+            key.startsWith('ARTIFACTORY_') ||
+                value.toString().contains('secrets.ARTIFACTORY_')
+          }
+        }
+        if (([workflow] + allJobs).any { hasPublicationCredentials(it.env) }) {
           errors.add('JFrog credentials must not be exposed to validation or local staging')
         }
-        def credentialSteps = publisher?.steps?.findAll {
-          it.env?.values()?.any { value -> value.toString().contains('secrets.ARTIFACTORY_') }
-        }
+        def credentialSteps = allSteps.findAll { hasPublicationCredentials(it.env) }
         if (credentialSteps != uploads) {
           errors.add('Only the upload step may reference JFrog secrets')
         }
-        def reports = publisher?.steps?.findAll {
+        def reports = allSteps.findAll {
           it.uses?.startsWith('actions/upload-artifact@')
         }
-        def runnerValidation = publisher?.steps?.find {
+        def contractValidation = contracts?.steps?.find {
+          it.run?.contains('python3 release/src/test/scripts/test_linkedin_build.py -v')
+        }
+        def runnerValidation = runners?.steps?.find {
           it.run?.contains(':sdks:java:core:check')
+        }
+        def requiredRunnerArguments = [
+          ':buildSrc:check', ':runners:spark:spotlessCheck', ':sdks:java:core:check',
+          ':runners:core-java:check', ':sdks:java:harness:check', ':sdks:java:extensions:avro:check',
+          ':runners:flink:1.19:build', ':runners:flink:1.20:build', ':runners:flink:2.0:build',
+          ':runners:flink:2.1:build', ':runners:flink:2.2:build',
+          ':runners:flink:1.20:validatesRunner', ':runners:flink:2.2:validatesRunner',
+          ':runners:spark:3:build', ':runners:spark:3:validatesRunner',
+          ':runners:spark:3:sparkVersionsTest', ':auto-elr:check',
+          '-Ppublishing', '-PisLinkedin', '-PisRelease', '-PlinkedinPublish', '-PnoSigning',
+          '"-PisSnapshot=$PUBLISH_SNAPSHOT"',
+          '--continue', '--rerun-tasks', '--no-build-cache', '--no-daemon', '--max-workers=2'
+        ]
+        if (contractValidation == null || contractValidation.get('if') != null ||
+            !contractValidation.run.contains('./gradlew :beam-test-gha:check') ||
+            runnerValidation == null || runnerValidation.get('if') != null ||
+            !runnerValidation.run.tokenize().containsAll(requiredRunnerArguments)) {
+          errors.add('LinkedIn validation jobs must retain every build and test gate')
         }
         if (reports?.size() != 1 || reports[0].get('if') != 'always()' ||
             reports[0].get('with')?.path?.readLines()?.collect { it.trim() }?.toSet() !=
                 (['**/build/reports/tests/', '**/build/test-results/'] as Set) ||
-            runnerValidation == null || uploads?.size() != 1 ||
-            publisher.steps.indexOf(reports[0]) <= publisher.steps.indexOf(runnerValidation) ||
-            publisher.steps.indexOf(reports[0]) >= publisher.steps.indexOf(uploads[0])) {
-          errors.add('LinkedIn publishing must retain all test reports after validation, even on failure, before uploading artifacts')
+            runnerValidation == null || !runners?.steps?.contains(reports[0]) ||
+            runners.steps.indexOf(reports[0]) <= runners.steps.indexOf(runnerValidation)) {
+          errors.add('LinkedIn runner validation must retain all test reports, even on failure')
+        }
+        def staging = publisher?.steps?.findAll {
+          it.run?.contains(':auto-elr:publishMavenJavaPublicationToMavenLocal')
+        }
+        if (staging?.size() != 1 || staging[0].get('if') != null || uploads.size() != 1 ||
+            publisher.steps.indexOf(staging[0]) >= publisher.steps.indexOf(uploads[0])) {
+          errors.add('LinkedIn publication must stage the complete bundle before the optional upload')
         }
       }
 

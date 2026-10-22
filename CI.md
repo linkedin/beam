@@ -154,12 +154,21 @@ gh workflow run li_maven_publish.yml --repo linkedin/beam \
   --ref li-release-2.75 -f version=2.75.1 -f publish=false
 ```
 
-The workflow validates build contracts and Java runners, then stages the complete
-bundle locally without release credentials. It uses native publishing mode for
-this local step to avoid ambient Maven settings, but invokes only local tasks.
+The workflow first validates the requested version in a short preparation job.
+Build/publication contracts and the full Java/runner matrix then run in parallel,
+each with its own 120-minute budget. The staging/publishing job requires the
+preparation and both validation jobs to succeed; failed, cancelled, or skipped
+validation cannot reach publication.
+
+Every job checks out the same workflow commit. Jobs have independent workspaces,
+so the final job builds and stages the complete bundle locally rather than
+assuming validation outputs are available. It has its own 120-minute budget and
+uses native publishing mode to avoid ambient Maven settings, but invokes only
+local tasks until upload is explicitly enabled.
 Java test XML and HTML reports are retained in the
-`linkedin-publisher-test-reports` artifact even when validation fails, before
-staging or remote publication. A failed validation still blocks both steps.
+`linkedin-publisher-test-reports` artifact by the runner-validation job even when
+validation fails. The workflow name, inputs, concurrency guard, test commands,
+and JFrog credential isolation are unchanged; other workflows are not reorganized.
 After an approved dry run, an approved live invocation can select `publish=true`.
 Snapshot publication requires the matching `-SNAPSHOT` version input.
 
