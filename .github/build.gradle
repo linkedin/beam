@@ -85,6 +85,20 @@ task check {
         if (credentialSteps != uploads) {
           errors.add('Only the upload step may reference JFrog secrets')
         }
+        def reports = publisher?.steps?.findAll {
+          it.uses?.startsWith('actions/upload-artifact@')
+        }
+        def runnerValidation = publisher?.steps?.find {
+          it.run?.contains(':sdks:java:core:check')
+        }
+        if (reports?.size() != 1 || reports[0].get('if') != 'always()' ||
+            reports[0].get('with')?.path?.readLines()?.collect { it.trim() }?.toSet() !=
+                (['**/build/reports/tests/', '**/build/test-results/'] as Set) ||
+            runnerValidation == null || uploads?.size() != 1 ||
+            publisher.steps.indexOf(reports[0]) <= publisher.steps.indexOf(runnerValidation) ||
+            publisher.steps.indexOf(reports[0]) >= publisher.steps.indexOf(uploads[0])) {
+          errors.add('LinkedIn publishing must retain all test reports after validation, even on failure, before uploading artifacts')
+        }
       }
 
       // additional guards to ensure tests configured in same way

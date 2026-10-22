@@ -31,6 +31,7 @@ import org.apache.beam.sdk.fn.stream.OutboundObserverFactory;
 import org.apache.beam.sdk.function.ThrowingFunction;
 import org.apache.beam.vendor.grpc.v1p69p0.io.grpc.Status;
 import org.apache.beam.vendor.grpc.v1p69p0.io.grpc.stub.StreamObserver;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Also can delegate to a set of handlers based upon the {@link
  * BeamFnApi.InstructionRequest.RequestCase request type}.
+ *
+ * <p>Instruction handlers use the context classloader of the thread that creates this client,
+ * independently of the transport or executor thread.
  *
  * <p>When the inbound instruction stream finishes successfully, the {@code onFinish} is completed
  * successfully signaling to the caller that this client will not produce any more {@link
@@ -96,9 +100,11 @@ public class BeamFnControlClient {
    */
   private class InboundObserver implements StreamObserver<BeamFnApi.InstructionRequest> {
     private final Executor executor;
+    private final @Nullable ClassLoader harnessClassLoader;
 
     InboundObserver(Executor executorService) {
       this.executor = executorService;
+      this.harnessClassLoader = Thread.currentThread().getContextClassLoader();
     }
 
     @Override
@@ -108,7 +114,11 @@ public class BeamFnControlClient {
         LOG.debug("Received InstructionRequest {}", request);
         executor.execute(
             () -> {
+              Thread thread = Thread.currentThread();
+              @Nullable ClassLoader previousClassLoader = thread.getContextClassLoader();
               try {
+                // In-process gRPC callbacks can retain another job's retired classloader.
+                thread.setContextClassLoader(harnessClassLoader);
                 // Ensure that we set and clear the MDC since processing the request will occur
                 // in a separate thread.
                 BeamFnLoggingMDC.setInstructionId(request.getInstructionId());
@@ -118,6 +128,7 @@ public class BeamFnControlClient {
                 sendErrorResponse(e);
                 throw e;
               } finally {
+                thread.setContextClassLoader(previousClassLoader);
                 BeamFnLoggingMDC.reset();
               }
             });
