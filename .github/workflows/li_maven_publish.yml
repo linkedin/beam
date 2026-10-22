@@ -37,18 +37,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  prepare:
     if: >-
       github.repository == 'linkedin/beam' &&
       github.event_name == 'workflow_dispatch' &&
       (github.ref == 'refs/heads/li_trunk' || startsWith(github.ref, 'refs/heads/li-release-'))
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 10
+    outputs:
+      snapshot: ${{ steps.version.outputs.snapshot }}
     env:
       EXPECTED_VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify requested version
+        id: version
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          text = pathlib.Path('gradle.properties').read_text()
+          base = re.search(r'^version=(.+)$', text, re.MULTILINE).group(1)
+          expected = os.environ['EXPECTED_VERSION']
+          if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', base) or expected not in (base, base + '-SNAPSHOT'):
+              raise SystemExit('Requested version must match gradle.properties (optionally with -SNAPSHOT)')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('snapshot=' + str(expected.endswith('-SNAPSHOT')).lower() + '\n')
+          PY
+  validate_contracts:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-go@v6
         with:
@@ -58,22 +83,29 @@ jobs:
         with:
           java-version: '11'
           distribution: temurin
-      - name: Verify requested version
-        run: |
-          python3 - <<'PY'
-          import os, pathlib, re
-          text = pathlib.Path('gradle.properties').read_text()
-          base = re.search(r'^version=(.+)$', text, re.MULTILINE).group(1)
-          expected = os.environ['EXPECTED_VERSION']
-          if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', base) or expected not in (base, base + '-SNAPSHOT'):
-              raise SystemExit('Requested version must match gradle.properties (optionally with -SNAPSHOT)')
-          with open(os.environ['GITHUB_ENV'], 'a') as output:
-              output.write('PUBLISH_SNAPSHOT=' + str(expected.endswith('-SNAPSHOT')).lower() + '\n')
-          PY
       - name: Validate LinkedIn build and publication contracts
         run: |
           ./gradlew :beam-test-gha:check --no-daemon --no-build-cache
           python3 release/src/test/scripts/test_linkedin_build.py -v
+  validate_runners:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PUBLISH_SNAPSHOT: ${{ needs.prepare.outputs.snapshot }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.2'
+          cache: false
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '11'
+          distribution: temurin
       - name: Validate Java and supported runners
         run: >-
           ./gradlew :buildSrc:check :runners:spark:spotlessCheck
@@ -95,6 +127,31 @@ jobs:
           path: |
             **/build/reports/tests/
             **/build/test-results/
+  publish:
+    needs: [prepare, validate_contracts, validate_runners]
+    if: >-
+      success() &&
+      github.repository == 'linkedin/beam' &&
+      github.event_name == 'workflow_dispatch' &&
+      (github.ref == 'refs/heads/li_trunk' || startsWith(github.ref, 'refs/heads/li-release-'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      EXPECTED_VERSION: ${{ inputs.version }}
+      PUBLISH_SNAPSHOT: ${{ needs.prepare.outputs.snapshot }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.2'
+          cache: false
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '11'
+          distribution: temurin
       - name: Stage complete publication locally
         run: >-
           ./gradlew :auto-elr:publishMavenJavaPublicationToMavenLocal
