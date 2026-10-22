@@ -87,6 +87,14 @@ jobs:
           -Ppublishing -PisLinkedin -PisRelease -PlinkedinPublish -PnoSigning
           "-PisSnapshot=$PUBLISH_SNAPSHOT"
           --continue --rerun-tasks --no-build-cache --no-daemon --max-workers=2
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linkedin-publisher-test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
       - name: Stage complete publication locally
         run: >-
           ./gradlew :auto-elr:publishMavenJavaPublicationToMavenLocal

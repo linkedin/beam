@@ -17,12 +17,14 @@
  */
 package org.apache.beam.fn.harness.control;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.Throwables.getStackTraceAsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
 import java.util.EnumMap;
@@ -33,6 +35,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.beam.fn.harness.logging.BeamFnLoggingMDC;
 import org.apache.beam.fn.harness.logging.RestoreBeamFnLoggingMDC;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
@@ -93,6 +96,9 @@ public class BeamFnControlClientTest {
 
   @Test
   public void testDelegation() throws Exception {
+    ClassLoader harnessClassLoader = Thread.currentThread().getContextClassLoader();
+    ClassLoader workerClassLoader = new ClassLoader(harnessClassLoader) {};
+    AtomicReference<ClassLoader> handlerClassLoader = new AtomicReference<>();
     AtomicBoolean clientClosedStream = new AtomicBoolean();
     BlockingQueue<BeamFnApi.InstructionResponse> values = new LinkedBlockingQueue<>();
     BlockingQueue<StreamObserver<BeamFnApi.InstructionRequest>> outboundServerObservers =
@@ -119,6 +125,13 @@ public class BeamFnControlClientTest {
                 })
             .build();
     server.start();
+    ExecutorService executor =
+        Executors.newSingleThreadExecutor(
+            runnable -> {
+              Thread thread = new Thread(runnable);
+              thread.setContextClassLoader(workerClassLoader);
+              return thread;
+            });
     try {
       EnumMap<
               BeamFnApi.InstructionRequest.RequestCase,
@@ -127,6 +140,7 @@ public class BeamFnControlClientTest {
       handlers.put(
           BeamFnApi.InstructionRequest.RequestCase.PROCESS_BUNDLE,
           value -> {
+            handlerClassLoader.set(Thread.currentThread().getContextClassLoader());
             assertEquals(value.getInstructionId(), BeamFnLoggingMDC.getInstructionId());
             return BeamFnApi.InstructionResponse.newBuilder()
                 .setProcessBundle(BeamFnApi.ProcessBundleResponse.getDefaultInstance());
@@ -134,11 +148,11 @@ public class BeamFnControlClientTest {
       handlers.put(
           BeamFnApi.InstructionRequest.RequestCase.REGISTER,
           value -> {
+            handlerClassLoader.set(Thread.currentThread().getContextClassLoader());
             assertEquals(value.getInstructionId(), BeamFnLoggingMDC.getInstructionId());
             throw FAILURE;
           });
 
-      ExecutorService executor = Executors.newCachedThreadPool();
       BeamFnControlClient client =
           new BeamFnControlClient(
               apiServiceDescriptor,
@@ -153,6 +167,10 @@ public class BeamFnControlClientTest {
 
       outboundServerObserver.onNext(SUCCESSFUL_REQUEST);
       assertEquals(SUCCESSFUL_RESPONSE, values.take());
+      assertSame(harnessClassLoader, handlerClassLoader.get());
+      assertSame(
+          workerClassLoader,
+          executor.submit(() -> Thread.currentThread().getContextClassLoader()).get(10, SECONDS));
 
       // Ensure that conversion of an unknown request type is properly converted to a
       // failure response.
@@ -162,12 +180,17 @@ public class BeamFnControlClientTest {
       // Ensure that all exceptions are caught and translated to failures
       outboundServerObserver.onNext(FAILURE_REQUEST);
       assertEquals(FAILURE_RESPONSE, values.take());
+      assertSame(harnessClassLoader, handlerClassLoader.get());
+      assertSame(
+          workerClassLoader,
+          executor.submit(() -> Thread.currentThread().getContextClassLoader()).get(10, SECONDS));
 
       // Ensure that the server completing the stream translates to the completable future
       // being completed allowing for a successful shutdown of the client.
       outboundServerObserver.onCompleted();
       client.terminationFuture().get();
     } finally {
+      executor.shutdownNow();
       server.shutdownNow();
     }
   }

@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.beam.model.jobmanagement.v1.JobApi.JobState;
@@ -200,10 +201,14 @@ public class PortableTimersExecutionTest implements Serializable {
                 options,
                 new FlinkPipelineRunner(options, null, Collections.emptyList()));
 
+    CompletableFuture<JobState.Enum> terminalState = new CompletableFuture<>();
+    jobInvocation.addStateListener(
+        event -> {
+          if (JobInvocation.isTerminated(event.getState())) {
+            terminalState.complete(event.getState());
+          }
+        });
     jobInvocation.start();
-    while (jobInvocation.getState() != JobState.Enum.DONE) {
-      Thread.sleep(1000);
-    }
-    assertThat(jobInvocation.getState(), is(JobState.Enum.DONE));
+    assertThat(terminalState.get(), is(JobState.Enum.DONE));
   }
 }

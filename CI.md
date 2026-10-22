@@ -96,7 +96,7 @@ python3 release/src/test/scripts/test_linkedin_build.py -v
 ```
 
 The Flink 1.20 CI job also runs these checks. They generate metadata and SDK
-version resources only; they do not publish artifacts. They cover
+version resources and publish to temporary local repositories, never remote ones. They cover
 release/snapshot/disabled flags, dependency coordinates under
 configuration-on-demand, and unchanged upstream publication configuration.
 The checks use temporary Maven settings rather than CI or developer credentials.
@@ -157,6 +157,9 @@ gh workflow run li_maven_publish.yml --repo linkedin/beam \
 The workflow validates build contracts and Java runners, then stages the complete
 bundle locally without release credentials. It uses native publishing mode for
 this local step to avoid ambient Maven settings, but invokes only local tasks.
+Java test XML and HTML reports are retained in the
+`linkedin-publisher-test-reports` artifact even when validation fails, before
+staging or remote publication. A failed validation still blocks both steps.
 After an approved dry run, an approved live invocation can select `publish=true`.
 Snapshot publication requires the matching `-SNAPSHOT` version input.
 
