@@ -62,6 +62,41 @@ gradle.beforeProject { project ->
               it.scope.text() == 'import' && it.type.text() == 'pom'
             } : 'Versionless Google Cloud dependencies require their BOM even in snapshots'
           }
+          if (project.path == ':sdks:java:extensions:protobuf') {
+            def bom = project.library.java.google_cloud_platform_libraries_bom.split(':')
+            assert pom.dependencyManagement.dependencies.dependency.any {
+              it.groupId.text() == bom[0] && it.artifactId.text() == bom[1] &&
+                  it.version.text() == bom[2] && it.scope.text() == 'import' &&
+                  it.type.text() == 'pom'
+            } : 'Protobuf must publish the shared Google Cloud BOM'
+            def storage = pom.dependencies.dependency.findAll {
+              it.groupId.text() == 'com.google.cloud' &&
+                  it.artifactId.text() == 'google-cloud-storage'
+            }
+            assert storage.size() == 1 && storage[0].version.text().isEmpty() :
+                'Protobuf storage must use the published BOM, not an obsolete literal version'
+            def apicurio = pom.dependencies.dependency.find {
+              it.groupId.text() == 'io.apicurio' &&
+                  it.artifactId.text() == 'apicurio-registry-protobuf-schema-utilities'
+            }
+            assert apicurio != null && apicurio.exclusions.exclusion.any {
+              it.groupId.text() == 'com.squareup.wire' && it.artifactId.text() == 'wire-compiler'
+            } : 'The published Apicurio edge must exclude the unused Wire compiler'
+            def artifacts = project.configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+            assert !artifacts.any {
+              it.moduleVersion.id.group == 'com.charleskorn.kaml' ||
+                  (it.moduleVersion.id.group == 'com.squareup.wire' &&
+                   it.moduleVersion.id.name == 'wire-compiler')
+            } : 'Protobuf runtime must not inherit compiler-only YAML dependencies'
+            def grpc = artifacts.find {
+              it.moduleVersion.id.group == 'io.grpc' &&
+                  it.moduleVersion.id.name == 'grpc-netty-shaded'
+            }
+            assert grpc != null && grpc.moduleVersion.id.version.matches(/\d+\.\d+\.\d+/)
+            def grpcVersion = grpc.moduleVersion.id.version.tokenize('.').collect { it.toInteger() }
+            assert grpcVersion[0] > 1 || (grpcVersion[0] == 1 && grpcVersion[1] >= 75) :
+                'Protobuf requires grpc-netty-shaded 1.75.0 or newer'
+          }
           if (group == 'com.linkedin.beam') {
             assert publication.repositories.every { it.url.scheme == 'file' } :
                 'LinkedIn local packaging must not register a remote upload destination'

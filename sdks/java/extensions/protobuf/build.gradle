@@ -33,15 +33,19 @@ description = "Apache Beam :: SDKs :: Java :: Extensions :: Protobuf"
 ext.summary = "Add support to Apache Beam for Google Protobuf."
 
 dependencies {
+  implementation enforcedPlatform(library.java.google_cloud_platform_libraries_bom)
   implementation library.java.byte_buddy
   implementation library.java.vendored_guava_32_1_2_jre
   implementation library.java.commons_compress
   implementation library.java.slf4j_api
   implementation project(path: ":sdks:java:core", configuration: "shadow")
-  implementation("com.google.cloud:google-cloud-storage:2.32.1")
+  implementation library.java.google_cloud_storage
   implementation library.java.protobuf_java
   implementation("com.squareup.wire:wire-schema-jvm:4.9.3")
-  implementation("io.apicurio:apicurio-registry-protobuf-schema-utilities:3.0.0.M2")
+  implementation("io.apicurio:apicurio-registry-protobuf-schema-utilities:3.0.0.M2") {
+    // Schema conversion uses Wire's parser, not its compiler or YAML tooling.
+    exclude group: "com.squareup.wire", module: "wire-compiler"
+  }
   testImplementation project(path: ":sdks:java:core", configuration: "shadowTest")
   testImplementation library.java.junit
   testRuntimeOnly library.java.slf4j_jdk14
