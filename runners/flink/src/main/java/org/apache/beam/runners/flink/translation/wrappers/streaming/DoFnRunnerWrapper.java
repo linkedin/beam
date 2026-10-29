@@ -46,9 +46,13 @@ import org.apache.beam.sdk.options.PipelineOptions;
  * runner and the metrics runner. So it sees every {@code startBundle}, {@code processElement},
  * {@code onTimer} and {@code finishBundle} call the operator makes to run the DoFn, when the call
  * is made: an element held for stable input or pushed back until side inputs are ready reaches the
- * wrapper when it is processed, not when it arrives. State cleanup and {@code @OnWindowExpiration}
- * run inside the {@code onTimer} call of the cleanup timer. {@link WindowDoFnOperator} and {@link
- * SplittableDoFnOperator} deliver fired timers through {@code processElement}.
+ * wrapper when it is processed, not when it arrives. A {@code @RequiresTimeSortedInput} DoFn is the
+ * exception: the stateful runner, inside the wrapper, holds each element in a sort buffer, so the
+ * wrapper sees {@code processElement} when the element arrives, and the DoFn processes the buffered
+ * elements later, all inside the {@code onTimer} call of the sort-flush timer or the cleanup timer.
+ * State cleanup and {@code @OnWindowExpiration} run inside the {@code onTimer} call of the cleanup
+ * timer. {@link WindowDoFnOperator} and {@link SplittableDoFnOperator} deliver fired timers through
+ * {@code processElement}.
  *
  * <p>The returned runner must delegate every {@link DoFnRunner} method to {@code runner}, including
  * {@link DoFnRunner#getFn()}.
@@ -61,7 +65,10 @@ public interface DoFnRunnerWrapper {
     PAR_DO,
     /**
      * A {@link SplittableDoFnOperator}. Its input is a {@code KeyedWorkItem} of element and
-     * restriction pairs, or of timers.
+     * restriction pairs, or of timers. A continuation (a resume after the DoFn checkpointed its
+     * work) arrives as a {@code KeyedWorkItem} of timers only: the element and restriction stay in
+     * the splittable DoFn's own keyed state, so the wrapper sees the original element only on the
+     * first call.
      */
     SPLITTABLE,
     /**
