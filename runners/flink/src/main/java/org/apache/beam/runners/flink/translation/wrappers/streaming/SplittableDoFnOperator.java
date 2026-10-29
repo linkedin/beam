@@ -102,6 +102,12 @@ public class SplittableDoFnOperator<InputT, OutputT, RestrictionT>
         Collections.emptyMap());
   }
 
+  /** LI-SPECIFIC: see {@link DoFnRunnerWrapper}. */
+  @Override
+  protected DoFnRunnerWrapper.Kind getDoFnRunnerWrapperKind() {
+    return DoFnRunnerWrapper.Kind.SPLITTABLE;
+  }
+
   @Override
   protected DoFnRunner<KeyedWorkItem<byte[], KV<InputT, RestrictionT>>, OutputT>
       createWrappingDoFnRunner(

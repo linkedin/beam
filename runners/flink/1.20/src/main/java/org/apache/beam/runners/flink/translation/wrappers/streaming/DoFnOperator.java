@@ -489,6 +489,14 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
     return NoopLock.get();
   }
 
+  /**
+   * LI-SPECIFIC: the kind of operator that {@link DoFnRunnerWrapper}s see, or {@code null} to apply
+   * no wrapper to this operator.
+   */
+  protected DoFnRunnerWrapper.@Nullable Kind getDoFnRunnerWrapperKind() {
+    return DoFnRunnerWrapper.Kind.PAR_DO;
+  }
+
   @Override
   public void open() throws Exception {
     // WindowDoFnOperator need use state and timer to get DoFn.
@@ -527,9 +535,23 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
             doFnSchemaInformation,
             sideInputMapping);
 
-    doFnRunner =
-        createBufferingDoFnRunnerIfNeeded(createWrappingDoFnRunner(doFnRunner, stepContext));
-    earlyBindStateIfNeeded();
+    // LI-SPECIFIC change: let DoFnRunnerWrapper extensions wrap the runner, outside the stateful
+    // runner and any wrapper a subclass adds, and inside the stable-input buffering runner, so
+    // elements replayed from the buffer go through the wrappers too.
+    DoFnRunner<InputT, OutputT> wrappingDoFnRunner =
+        createWrappingDoFnRunner(doFnRunner, stepContext);
+    DoFnRunnerWrapper.Kind wrapperKind = getDoFnRunnerWrapperKind();
+    DoFnRunner<InputT, OutputT> extendedDoFnRunner =
+        wrapperKind == null
+            ? wrappingDoFnRunner
+            : DoFnRunnerWrappers.apply(
+                wrappingDoFnRunner,
+                DoFnRunnerWrappers.context(stepName, serializedOptions.get(), wrapperKind));
+    doFnRunner = createBufferingDoFnRunnerIfNeeded(extendedDoFnRunner);
+    // LI-SPECIFIC change: bind state as if no DoFnRunnerWrapper was applied: pass the buffering
+    // runner if one was added (as before), otherwise the runner inside the wrappers, so a wrapper
+    // does not hide the StatefulDoFnRunner's system state from early binding.
+    earlyBindStateIfNeeded(doFnRunner == extendedDoFnRunner ? wrappingDoFnRunner : doFnRunner);
 
     if (!options.getDisableMetrics()) {
       flinkMetricContainer = new FlinkMetricContainer(getRuntimeContext());
@@ -601,7 +623,8 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
     return getKeyedStateBackend();
   }
 
-  private void earlyBindStateIfNeeded() throws IllegalArgumentException, IllegalAccessException {
+  private void earlyBindStateIfNeeded(DoFnRunner<InputT, OutputT> runner)
+      throws IllegalArgumentException, IllegalAccessException {
     if (keyCoder != null) {
       if (doFn != null) {
         DoFnSignature signature = DoFnSignatures.getSignature(doFn.getClass());
@@ -612,8 +635,8 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
               (StateSpec<?>) signature.stateDeclarations().get(value.id()).field().get(doFn);
           spec.bind(value.id(), earlyBinder);
         }
-        if (doFnRunner instanceof StatefulDoFnRunner) {
-          ((StatefulDoFnRunner<InputT, OutputT, BoundedWindow>) doFnRunner)
+        if (runner instanceof StatefulDoFnRunner) {
+          ((StatefulDoFnRunner<InputT, OutputT, BoundedWindow>) runner)
               .getSystemStateTags()
               .forEach(tag -> tag.getSpec().bind(tag.getId(), earlyBinder));
         }
