@@ -142,6 +142,8 @@ class PublisherWorkflowTest(unittest.TestCase):
             "def steps = definition.jobs.validate_runners.steps; def reports = steps.find { it.uses?.startsWith('actions/upload-artifact@') }; steps.remove(reports); steps.add(0, reports)",
         'missing_spark_tests':
             "def step = definition.jobs.validate_runners.steps.find { it.run }; step.run = step.run.replace(':runners:spark:3:sparkVersionsTest', '')",
+        'missing_protobuf_tests':
+            "def step = definition.jobs.validate_runners.steps.find { it.run }; step.run = step.run.replace(':sdks:java:extensions:protobuf:check', '')",
         'raised_job_budget':
             "definition.jobs.validate_contracts['timeout-minutes'] = 240",
     }
@@ -299,6 +301,7 @@ class PublicationMetadataTest(unittest.TestCase):
     modules = [
         ':sdks:java:core',
         ':sdks:java:extensions:avro',
+        ':sdks:java:extensions:protobuf',
         ':sdks:java:io:google-cloud-platform',
         ':runners:flink:1.20',
         ':runners:flink:2.2',
@@ -474,6 +477,18 @@ tasks.register('verifyResolution') {{
     assert fork.every {{ it.moduleVersion.id.version == '{version}' }}
     assert artifacts.findAll {{ it.moduleVersion.id.group == 'org.apache.beam' }}
         .every {{ it.moduleVersion.id.name.startsWith('beam-vendor-') }}
+    assert !artifacts.any {{
+      it.moduleVersion.id.group == 'com.charleskorn.kaml' ||
+          (it.moduleVersion.id.group == 'com.squareup.wire' &&
+           it.moduleVersion.id.name == 'wire-compiler')
+    }}
+    def grpc = artifacts.find {{
+      it.moduleVersion.id.group == 'io.grpc' &&
+          it.moduleVersion.id.name == 'grpc-netty-shaded'
+    }}
+    assert grpc != null && grpc.moduleVersion.id.version.matches(/[0-9]+[.][0-9]+[.][0-9]+/)
+    def grpcVersion = grpc.moduleVersion.id.version.tokenize('.').collect {{ it.toInteger() }}
+    assert grpcVersion[0] > 1 || (grpcVersion[0] == 1 && grpcVersion[1] >= 75)
   }}
 }}
 """)
