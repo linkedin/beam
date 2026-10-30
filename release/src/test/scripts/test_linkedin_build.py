@@ -352,6 +352,78 @@ class PublicationMetadataTest(unittest.TestCase):
             *flags)
         self.assertEqual(result.returncode, 0, result.stdout)
 
+  def test_protobuf_upstream_dependencies(self):
+    module = ':sdks:java:extensions:protobuf'
+    result = self.run_gradle(
+        [module + ':generatePomFileForMavenJavaPublication'],
+        '-PisLinkedin', '-PisRelease')
+    self.assertEqual(result.returncode, 0, result.stdout)
+    namespace = {'m': 'http://maven.apache.org/POM/4.0.0'}
+    pom = ET.parse(
+        ROOT / 'sdks/java/extensions/protobuf/build/publications/mavenJava/pom-default.xml')
+    apicurio = [
+        dependency for dependency in pom.findall('m:dependencies/m:dependency', namespace)
+        if dependency.findtext('m:groupId', namespaces=namespace) == 'io.apicurio'
+        and dependency.findtext('m:artifactId', namespaces=namespace)
+        == 'apicurio-registry-protobuf-schema-utilities'
+    ]
+    self.assertEqual(len(apicurio), 1)
+    coordinate = ':'.join(
+        apicurio[0].findtext('m:' + name, namespaces=namespace)
+        for name in ['groupId', 'artifactId', 'version'])
+    consumer = pathlib.Path(self.directory.name) / 'protobuf-upstream'
+    consumer.mkdir()
+    (consumer / 'settings.gradle').write_text("rootProject.name = 'protobuf-upstream'\n")
+    (consumer / 'build.gradle').write_text(f"""
+import groovy.util.XmlSlurper
+
+plugins {{ id 'java' }}
+repositories {{ mavenCentral() }}
+tasks.register('verifyUpstreamDependencies') {{
+  doLast {{
+    def assertPatchedKaml = {{ version, source ->
+      assert version.matches(/[0-9]+[.][0-9]+[.][0-9]+/)
+      def parts = version.tokenize('.').collect {{ it.toInteger() }}
+      assert parts[0] > 0 || parts[1] >= 53 :
+          "$source declares vulnerable Kaml $version"
+    }}
+    def pending = new ArrayDeque(['{coordinate}'])
+    def visited = [] as Set
+    while (!pending.isEmpty()) {{
+      def requested = pending.remove()
+      if (!visited.add(requested)) {{
+        continue
+      }}
+      def upstream = configurations.detachedConfiguration(dependencies.create(requested))
+      def roots = upstream.resolvedConfiguration.firstLevelModuleDependencies
+      assert !roots.isEmpty() : "No dependency metadata for $requested"
+      roots.each {{ dependency ->
+        if (dependency.moduleGroup == 'com.charleskorn.kaml') {{
+          assertPatchedKaml(dependency.moduleVersion, requested)
+        }}
+        if (dependency.moduleGroup == 'com.squareup.wire' &&
+            dependency.moduleName == 'wire-compiler') {{
+          def metadata = configurations.detachedConfiguration(
+              dependencies.create("${{dependency.module.id}}@pom"))
+          metadata.transitive = false
+          def compilerPom = new XmlSlurper(false, false).parse(metadata.singleFile)
+          compilerPom.dependencies.dependency.findAll {{
+            it.groupId.text() == 'com.charleskorn.kaml'
+          }}.each {{
+            assertPatchedKaml(it.version.text(), "$requested POM")
+          }}
+        }}
+        dependency.children.each {{ child ->
+          pending.add("${{child.moduleGroup}}:${{child.moduleName}}:${{child.moduleVersion}}".toString())
+        }}
+      }}
+    }}
+  }}
+}}
+""")
+    result = self.run_gradle(['-p', str(consumer), 'verifyUpstreamDependencies'])
+    self.assertEqual(result.returncode, 0, result.stdout)
+
   def test_remote_publisher_is_explicit_and_guarded(self):
     base = re.search(
         r'^version=(.+)$',

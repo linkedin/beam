@@ -66,7 +66,7 @@ integration tests, which require a separately approved environment and resource 
 ### LinkedIn fork: Java artifact packaging
 
 `gradle.properties` is the version source for the Java fork. Run
-`./update_version.sh 2.75.2` to set it, or omit the argument to increment the patch
+`./update_version.sh 2.75.3` to set it, or omit the argument to increment the patch
 number. The script updates only `version` and `sdk_version`; it does not stage
 files, create tags, or change Python/Go/TypeScript SDK releases. Python 3 is required.
 
@@ -74,7 +74,7 @@ files, create tags, or change Python/Go/TypeScript SDK releases. Python 3 is req
 |---|---|---|---|
 | Flags | `-PisLinkedin -PisRelease` | `-PisLinkedin` (or add `-PisSnapshot` to a release build) | No `-PisLinkedin` flag |
 | Maven group | `com.linkedin.beam` | `com.linkedin.beam` | `org.apache.beam` |
-| Version at this revision | `2.75.2` | `2.75.2-SNAPSHOT` | `2.75.2` |
+| Version at this revision | `2.75.3` | `2.75.3-SNAPSHOT` | `2.75.3` |
 | Remote publication destinations | JFrog only with `-PlinkedinPublish` | JFrog only with `-PlinkedinPublish` | Existing Apache destinations |
 
 For Java fork modules using `BeamModulePlugin`, LinkedIn mode remains local-only
@@ -107,7 +107,10 @@ is reused. Normal publication authentication is unchanged.
 The protobuf publication checks also verify its shared Google Cloud BOM and
 storage dependency, the published exclusion of Wire's unused compiler, and the
 absence of compiler-only YAML libraries at runtime. The publisher runs the full
-protobuf module checks before staging. These checks supplement, not replace,
+protobuf module checks before staging. A separate check re-resolves Apicurio and
+each queued dependency independently, without the parent's exclusions or version
+selections, and inspects the Wire compiler's POM for vulnerable Kaml declarations.
+These checks supplement, not replace,
 ELR license and vulnerability validation of the published dependency graph.
 
 To stage one artifact without touching your normal Maven cache:
@@ -157,7 +160,7 @@ release branch explicitly when arranging an approved dry run, for example:
 
 ```bash
 gh workflow run li_maven_publish.yml --repo linkedin/beam \
-  --ref li-release-2.75 -f version=2.75.2 -f publish=false
+  --ref li-release-2.75 -f version=2.75.3 -f publish=false
 ```
 
 The workflow first validates the requested version in a short preparation job.
@@ -183,7 +186,7 @@ For an approved direct invocation from a clean release branch:
 ```bash
 ./gradlew :auto-elr:publishLinkedin \
   -Ppublishing -PisLinkedin -PisRelease -PlinkedinPublish -PnoSigning \
-  -PlinkedinVersion=2.75.2 --no-daemon --no-build-cache --max-workers=2
+  -PlinkedinVersion=2.75.3 --no-daemon --no-build-cache --max-workers=2
 ```
 
 The publication guard checks branch, CI event/repository, clean worktree,
