@@ -87,6 +87,12 @@ public class WindowDoFnOperator<K, InputT, OutputT>
     this.systemReduceFn = systemReduceFn;
   }
 
+  /** LI-SPECIFIC: see {@link DoFnRunnerWrapper}. */
+  @Override
+  protected DoFnRunnerWrapper.Kind getDoFnRunnerWrapperKind() {
+    return DoFnRunnerWrapper.Kind.WINDOW;
+  }
+
   @Override
   protected DoFnRunner<KeyedWorkItem<K, InputT>, KV<K, OutputT>> createWrappingDoFnRunner(
       DoFnRunner<KeyedWorkItem<K, InputT>, KV<K, OutputT>> wrappedRunner, StepContext stepContext) {

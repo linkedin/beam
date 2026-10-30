@@ -54,6 +54,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.repackaged.core.org.apache.commons.lang3.SerializationUtils;
 import org.apache.beam.repackaged.core.org.apache.commons.lang3.mutable.MutableObject;
+import org.apache.beam.runners.core.DoFnRunner;
 import org.apache.beam.runners.core.InMemoryStateInternals;
 import org.apache.beam.runners.core.InMemoryTimerInternals;
 import org.apache.beam.runners.core.StateNamespace;
@@ -290,6 +291,39 @@ public class ExecutableStageDoFnOperatorTest {
     verifyNoMoreInteractions(receiver);
 
     testHarness.close();
+  }
+
+  @Test
+  public void doFnRunnerWrappersAreNotApplied() throws Exception {
+    DoFnRunnerWrapper failingWrapper =
+        new DoFnRunnerWrapper() {
+          @Override
+          public <InputT, OutputT> DoFnRunner<InputT, OutputT> wrap(
+              DoFnRunner<InputT, OutputT> runner, Context context) {
+            throw new AssertionError("ExecutableStageDoFnOperator must not be wrapped: " + context);
+          }
+        };
+    DoFnRunnerWrappers.setForTesting(Collections.singletonList(failingWrapper));
+    try {
+      TupleTag<Integer> mainOutput = new TupleTag<>("main-output");
+      DoFnOperator.MultiOutputOutputManagerFactory<Integer> outputManagerFactory =
+          new DoFnOperator.MultiOutputOutputManagerFactory(
+              mainOutput,
+              VoidCoder.of(),
+              new SerializablePipelineOptions(FlinkPipelineOptions.defaults()));
+      ExecutableStageDoFnOperator<Integer, Integer> operator =
+          getOperator(mainOutput, Collections.emptyList(), outputManagerFactory);
+      OneInputStreamOperatorTestHarness<WindowedValue<Integer>, WindowedValue<Integer>>
+          testHarness = new OneInputStreamOperatorTestHarness<>(operator);
+      try {
+        testHarness.open();
+        assertEquals(null, operator.getDoFnRunnerWrapperKind());
+      } finally {
+        testHarness.close();
+      }
+    } finally {
+      DoFnRunnerWrappers.resetForTesting();
+    }
   }
 
   @Test

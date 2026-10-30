@@ -238,6 +238,16 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     return isStateful ? super.getKeyedStateBackend() : null;
   }
 
+  /**
+   * LI-SPECIFIC: {@link DoFnRunnerWrapper}s do not apply to the portable runner. The user DoFn runs
+   * in the SDK harness, not on this thread, and this operator's runner only forwards elements to it
+   * asynchronously, so a wrapper here could not scope the DoFn's execution.
+   */
+  @Override
+  protected DoFnRunnerWrapper.@Nullable Kind getDoFnRunnerWrapperKind() {
+    return null;
+  }
+
   @Override
   protected Lock getLockToAcquireForStateAccessDuringBundles() {
     return stateBackendLock;
