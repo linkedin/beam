@@ -41,8 +41,8 @@ dependencies {
   implementation project(path: ":sdks:java:core", configuration: "shadow")
   implementation library.java.google_cloud_storage
   implementation library.java.protobuf_java
-  implementation("com.squareup.wire:wire-schema-jvm:4.9.3")
-  implementation("io.apicurio:apicurio-registry-protobuf-schema-utilities:3.0.0.M2") {
+  implementation("com.squareup.wire:wire-schema-jvm:4.9.9")
+  implementation("io.apicurio:apicurio-registry-protobuf-schema-utilities:3.0.0") {
     // Schema conversion uses Wire's parser, not its compiler or YAML tooling.
     exclude group: "com.squareup.wire", module: "wire-compiler"
   }
